@@ -1,0 +1,35 @@
+name: Action Plan KPI Sync
+
+on:
+  # 営業KPI（訪問・見積・受注）を Salesforce から自動同期（前月＋今月）。
+  # Vercel Hobby の cron は1日1件（escoboard/cron）で枠が埋まっているため、
+  # ここは GitHub Actions schedule で駆動する（AGENTS.md の制約に準拠）。
+  # 毎日 01:00 JST（= UTC 16:00）。SF未設定なら endpoint 側が安全に no-op。
+  schedule:
+    - cron: "0 16 * * *" # 毎日 01:00 JST
+  # 手動実行
+  workflow_dispatch:
+
+# 同一ワークフローの連続起動では古い実行をキャンセルし多重実行を防ぐ。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call action-plan kpi-sync endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/sync_body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://devlop-beta.vercel.app/api/actionplan/cron/kpi-sync")
+          echo "HTTP status: $HTTP_STATUS"
+          echo "Response:"
+          cat /tmp/sync_body || true
+          echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "KPI sync endpoint returned non-200 status: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "KPI sync completed."

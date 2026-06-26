@@ -1,0 +1,30 @@
+name: Teams News Sync
+
+on:
+  # 平日 22:00 JST（UTC 13:00）に1日1回、Teamsチャンネルの新着を「お知らせ」へ取込む。
+  # 旧 renew-subscriptions（毎15分）を置き換え、GitHub Actions 消費を大幅削減する。
+  schedule:
+    - cron: "0 13 * * 1-5"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Teams news sync endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://devlop-beta.vercel.app/api/admin/notifications/teams-sync")
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/body || true
+          echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Teams news sync returned non-200: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Teams news sync completed."

@@ -1,0 +1,36 @@
+name: Action Plan Record Reminders
+
+on:
+  # 行動計画の「日次記録が止まっているメンバー」へのリマインド。
+  # Vercel Hobby の cron 枠は使えないため GitHub Actions schedule で駆動する（AGENTS.md）。
+  # 平日 09:00 JST（= UTC 00:00 月〜金）。土日は記録ギャップに数えないため実行しない。
+  # 本人のオプトイン制: リマインドON＋しきい値（営業日数）は各自が
+  # 「自分の計画」のリマインド設定で変更する（既定はリマインドなし）。
+  schedule:
+    - cron: "0 0 * * 1-5"
+  # 手動実行
+  workflow_dispatch:
+
+# 同一ワークフローの連続起動では古い実行をキャンセルし多重実行を防ぐ。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call record reminders endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/remind_body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://devlop-beta.vercel.app/api/actionplan/cron/record-reminders")
+          echo "HTTP status: $HTTP_STATUS"
+          echo "Response:"
+          cat /tmp/remind_body || true
+          echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Record reminders endpoint returned non-200 status: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Record reminder check completed."

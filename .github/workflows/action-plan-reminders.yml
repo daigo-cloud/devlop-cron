@@ -1,0 +1,36 @@
+name: Action Plan Reminders
+
+on:
+  # 行動計画の未提出/未FB 定期リマインド（フェーズ2 C）。
+  # Vercel Hobby の cron は日次2件で枠が埋まっているため GitHub Actions schedule で駆動する。
+  # 毎週月曜 と 毎月5日（JST 09:00 = UTC 00:00）。重複日(月曜=5日)はエンドポイント側が
+  # ReminderLog で二重送信を抑制する。
+  schedule:
+    - cron: "0 0 * * 1" # 毎週月曜 09:00 JST
+    - cron: "0 0 5 * *" # 毎月5日 09:00 JST
+  # 手動実行
+  workflow_dispatch:
+
+# 同一ワークフローの連続起動では古い実行をキャンセルし多重実行を防ぐ。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call action-plan reminders endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/remind_body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://devlop-beta.vercel.app/api/actionplan/cron/reminders")
+          echo "HTTP status: $HTTP_STATUS"
+          echo "Response:"
+          cat /tmp/remind_body || true
+          echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Reminders endpoint returned non-200 status: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Reminder check completed."

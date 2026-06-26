@@ -1,0 +1,32 @@
+name: ERP Notifications
+
+on:
+  # 基幹システムのTeams定期通知（K-04）。締め日前の未確定伝票・前月の未承認売上リスト。
+  # Vercel Hobby の cron 枠（日次2件）は埋まっているため GitHub Actions schedule で駆動する。
+  # 毎朝 JST 08:00（UTC 23:00）。二重送信はエンドポイント側が ErpNotifyLog で抑制する。
+  schedule:
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+
+# 同一ワークフローの連続起動では古い実行をキャンセルし多重実行を防ぐ。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call ERP notifications endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/erp_notify_body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://devlop-beta.vercel.app/api/erp/cron/notifications")
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/erp_notify_body || true
+          echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "ERP notifications endpoint returned non-200: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "ERP notification check completed."

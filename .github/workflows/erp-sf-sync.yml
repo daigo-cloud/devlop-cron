@@ -1,0 +1,36 @@
+name: ERP SF Project Sync
+
+on:
+  # 物件マスタ（ErpProject）への Salesforce 商談（Opportunity）日次同期。
+  # ※取引先はSFから同期しない（SFのAccountは物件名 — 2026-06-12 社長指示）。
+  # Vercel Hobby の cron 枠は満杯のため GitHub Actions schedule で駆動する（AGENTS.md）。
+  # 毎日 05:00 JST（= UTC 20:00）。既存の SF 連携バッチ（KPI同期 16:00 UTC）と
+  # 時間帯をずらして API レート共有の衝突を避ける。
+  schedule:
+    - cron: "0 20 * * *"
+  # 手動実行
+  workflow_dispatch:
+
+# 同一ワークフローの連続起動では古い実行をキャンセルし多重実行を防ぐ。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call ERP SF sync endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/sync_body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://devlop-beta.vercel.app/api/erp/sf-sync")
+          echo "HTTP status: $HTTP_STATUS"
+          echo "Response:"
+          cat /tmp/sync_body || true
+          echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "ERP SF sync endpoint returned non-200 status: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "ERP SF sync completed."

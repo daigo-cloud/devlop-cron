@@ -1,7 +1,16 @@
-# 脱SF CRM Phase 0: 読み取りミラーの日次同期。
+# 脱SF CRM Phase 0: 読み取りミラーの同期。
 # 公開リポ devlop-cron で実行（private Actions 課金を避けるため）。
 # エンドポイントは CRON_SECRET(Bearer) で保護済み。URL は公開情報のため直書き。
-# 差分同期: ?since=（前回からの更新分）。初回バックフィルは手動 dispatch で ?only=tasks 等を1種ずつ。
+#
+# ★504 対策: エンドポイントは maxDuration=60s。全種を1リクエストで回すと超過するため、
+#   1種ずつ(?only=)順番に叩く。日次は差分(?since=)で軽く、手動は全件バックフィル可。
+#
+# 使い方:
+#   - 自動(毎日 06:00 JST): 全7種を「約30時間前からの差分」で順次同期。
+#   - 手動 dispatch:
+#       only 指定 + since 空        → その1種を【全件】バックフィル
+#       only 指定 + since 指定      → その1種を指定起点から差分
+#       only 空   + since 指定      → 全7種を指定起点から差分
 name: crm-sync
 
 on:
@@ -10,11 +19,11 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "対象を限定 (properties|accounts|contacts|events|tasks|leads)。空=全件"
+        description: "対象を限定 (properties|accounts|contacts|events|tasks|leads|bizcards)。空=全種"
         required: false
         default: ""
       since:
-        description: "差分の起点 (SOQL datetime 例 2026-06-25T00:00:00Z)。空=全件"
+        description: "差分の起点 (SOQL datetime 例 2026-06-25T00:00:00Z)。空=日次は約30h前/手動only指定時は全件"
         required: false
         default: ""
 
@@ -26,15 +35,48 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger CRM mirror sync
+      - name: Trigger CRM mirror sync (per-object to avoid 60s timeout)
+        env:
+          ONLY_IN: ${{ github.event.inputs.only }}
+          SINCE_IN: ${{ github.event.inputs.since }}
         run: |
-          URL="https://devlop-beta.vercel.app/api/crm/sync"
-          Q=""
-          [ -n "${{ github.event.inputs.only }}" ]  && Q="${Q}&only=${{ github.event.inputs.only }}"
-          [ -n "${{ github.event.inputs.since }}" ] && Q="${Q}&since=${{ github.event.inputs.since }}"
-          [ -n "$Q" ] && URL="${URL}?${Q#&}"
-          echo "GET $URL"
-          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "$URL")
-          echo "HTTP $code"; cat /tmp/out.json; echo
-          [ "$code" = "200" ] || { echo "sync failed"; exit 1; }
+          set -u
+          BASE="https://devlop-beta.vercel.app/api/crm/sync"
+
+          # 対象種別: only 指定があればそれ1種、無ければ全7種
+          if [ -n "${ONLY_IN}" ]; then
+            TYPES="${ONLY_IN}"
+          else
+            TYPES="properties accounts contacts events tasks leads bizcards"
+          fi
+
+          # 差分起点 since の決定:
+          #   - since 明示       → それを使う
+          #   - since 空 & only空(=日次/全種) → 約30時間前からの差分（取りこぼし余裕）
+          #   - since 空 & only指定(=手動バックフィル) → 全件（since 無し）
+          if [ -n "${SINCE_IN}" ]; then
+            SINCE="${SINCE_IN}"
+          elif [ -z "${ONLY_IN}" ]; then
+            SINCE="$(date -u -d '30 hours ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-30H +%Y-%m-%dT%H:%M:%SZ)"
+          else
+            SINCE=""
+          fi
+          [ -n "${SINCE}" ] && echo "since=${SINCE}" || echo "since=(none / full)"
+
+          fail=0
+          for t in ${TYPES}; do
+            URL="${BASE}?only=${t}"
+            [ -n "${SINCE}" ] && URL="${URL}&since=${SINCE}"
+            echo "== GET ${URL}"
+            code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${URL}")
+            echo "HTTP ${code}"
+            head -c 800 /tmp/out.json 2>/dev/null || true
+            echo ""
+            if [ "${code}" != "200" ]; then
+              echo "!! ${t} sync failed (HTTP ${code})"
+              fail=1
+            fi
+          done
+          [ "${fail}" = "0" ] || { echo "one or more object syncs failed"; exit 1; }
+          echo "CRM sync completed."

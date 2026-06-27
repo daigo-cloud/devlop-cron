@@ -1,0 +1,40 @@
+# 脱SF CRM Phase 0: 読み取りミラーの日次同期。
+# 公開リポ devlop-cron で実行（private Actions 課金を避けるため）。
+# エンドポイントは CRON_SECRET(Bearer) で保護済み。URL は公開情報のため直書き。
+# 差分同期: ?since=（前回からの更新分）。初回バックフィルは手動 dispatch で ?only=tasks 等を1種ずつ。
+name: crm-sync
+
+on:
+  schedule:
+    - cron: "0 21 * * *" # 06:00 JST（UTC 21:00）
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "対象を限定 (properties|accounts|contacts|events|tasks|leads)。空=全件"
+        required: false
+        default: ""
+      since:
+        description: "差分の起点 (SOQL datetime 例 2026-06-25T00:00:00Z)。空=全件"
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger CRM mirror sync
+        run: |
+          URL="https://devlop-beta.vercel.app/api/crm/sync"
+          Q=""
+          [ -n "${{ github.event.inputs.only }}" ]  && Q="${Q}&only=${{ github.event.inputs.only }}"
+          [ -n "${{ github.event.inputs.since }}" ] && Q="${Q}&since=${{ github.event.inputs.since }}"
+          [ -n "$Q" ] && URL="${URL}?${Q#&}"
+          echo "GET $URL"
+          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "$URL")
+          echo "HTTP $code"; cat /tmp/out.json; echo
+          [ "$code" = "200" ] || { echo "sync failed"; exit 1; }

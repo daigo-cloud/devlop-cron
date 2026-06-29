@@ -1,0 +1,32 @@
+name: DSC Material Request Auto-Send
+
+on:
+  # 資料請求（DSC）の時間差自動送信。送信予定時刻（scheduledAt）が到来した
+  # pending を送る。Vercel Hobby の cron 枠は使えないため GitHub Actions schedule で
+  # 駆動する（AGENTS.md）。
+  # JST 平日 9-18時の毎時（UTC 0-9 の毎時・月〜金）。翌営業日9時(JST)=UTC0時を含み、
+  # 1時間後も最大1時間粒度で拾える。夜間は送らない（業務時間内のみ）。
+  # 「即時」は記録時にアプリ側が即送信するため、ここは 1時間後/翌営業日9時 と取りこぼしの保険。
+  schedule:
+    - cron: "0 0-9 * * 1-5"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call material auto-send endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://devlop-beta.vercel.app/api/dsc/material-requests/cron")
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/body || true; echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "material-send endpoint returned non-200: $HTTP_STATUS"; exit 1
+          fi
+          echo "material auto-send completed."

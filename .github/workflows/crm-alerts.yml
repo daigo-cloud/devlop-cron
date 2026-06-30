@@ -1,0 +1,40 @@
+# CRM 自動アラート: 要対応物件（受注予定日超過/60日停滞/次の行動なし）を日次でTeamsへ通知。
+# 公開リポ devlop-cron で実行（private Actions 課金を避ける）。
+# エンドポイントは CRON_SECRET(Bearer) で保護済み。GET ?preview=1 で送信せず本文確認。
+# 前提: 本番に PR#467 デプロイ済み + TEAMS_NOTIFY_WEBHOOK_URL 設定済み。
+name: crm-alerts
+
+on:
+  schedule:
+    # 毎営業日 08:00 JST（UTC 23:00・曜日 Sun-Thu = JST Mon-Fri 朝）。
+    - cron: "0 23 * * 0-4"
+  workflow_dispatch:
+    inputs:
+      preview:
+        description: "1 で送信せず本文をログ表示（疎通確認）"
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger CRM alerts digest
+        env:
+          PREVIEW_IN: ${{ github.event.inputs.preview }}
+        run: |
+          set -u
+          URL="https://devlop-beta.vercel.app/api/crm/alerts/run"
+          [ "${PREVIEW_IN}" = "1" ] && URL="${URL}?preview=1"
+          echo "== GET ${URL}"
+          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${URL}")
+          echo "HTTP ${code}"
+          head -c 1500 /tmp/out.json 2>/dev/null || true
+          echo ""
+          [ "${code}" = "200" ] || { echo "!! crm-alerts failed (HTTP ${code})"; exit 1; }
+          echo "CRM alerts digest completed."

@@ -1,0 +1,41 @@
+# ④ メール→CRM活動: 専用箱(crm-activity@)をGraphで読み、CrmTask(完了/Email)化。
+# 公開リポ devlop-cron で実行（private Actions 課金を避ける）。
+# エンドポイントは CRON_SECRET(Bearer) で保護済み。GET ?take=N。
+# 前提: 本番に ④ がデプロイ済み + Vercel env CRM_INBOUND_MAILBOX 設定済み +
+#       Entra Mail.Read 同意済み + App Access Policy で専用箱に限定済み(B2)。
+name: crm-inbound-email
+
+on:
+  schedule:
+    # 平日 09:00–18:00 JST を毎時（UTC 00–09 の月–金）。GitHub Actions(公開リポ)は無料。
+    - cron: "0 0-9 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      take:
+        description: "1回で処理する最大メール数"
+        required: false
+        default: "25"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger CRM inbound-email ingest
+        env:
+          TAKE_IN: ${{ github.event.inputs.take }}
+        run: |
+          set -u
+          TAKE="${TAKE_IN:-25}"
+          URL="https://devlop-beta.vercel.app/api/crm/inbound-email?take=${TAKE}"
+          echo "== GET ${URL}"
+          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${URL}")
+          echo "HTTP ${code}"
+          head -c 1200 /tmp/out.json 2>/dev/null || true
+          echo ""
+          [ "${code}" = "200" ] || { echo "!! inbound-email ingest failed (HTTP ${code})"; exit 1; }
+          echo "Inbound-email ingest completed."

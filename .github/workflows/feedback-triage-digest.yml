@@ -1,0 +1,29 @@
+name: Feedback Triage Digest
+
+on:
+  # フィードバック未対応の日次ダイジェスト（機能別残数）を Teams へ通知。
+  # サーバ側で集計〜投稿まで完結する endpoint を curl するだけ。未対応0件なら投稿しない。
+  # JST 平日 7:12（UTC-9 = UTC 22:12 の日〜木）。
+  schedule:
+    - cron: "12 22 * * 0-4"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call feedback triage digest endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://devlop-beta.vercel.app/api/feedback/triage/digest")
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/body || true; echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "digest endpoint returned non-200: $HTTP_STATUS"; exit 1
+          fi
+          echo "feedback triage digest completed."

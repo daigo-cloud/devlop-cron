@@ -28,7 +28,7 @@ jobs:
           PREVIEW_IN: ${{ github.event.inputs.preview }}
         run: |
           set -u
-          URL="https://devlop-beta.vercel.app/api/crm/alerts/run"
+          URL="https://portal.esco-duct.com/api/crm/alerts/run"
           [ "${PREVIEW_IN}" = "1" ] && URL="${URL}?preview=1"
           echo "== GET ${URL}"
           code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \

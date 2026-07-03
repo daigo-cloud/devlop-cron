@@ -21,7 +21,7 @@ jobs:
       - name: Evaluate dynamic segments
         run: |
           set -u
-          URL="https://devlop-beta.vercel.app/api/crm/segments/evaluate"
+          URL="https://portal.esco-duct.com/api/crm/segments/evaluate"
           echo "== GET ${URL}"
           code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${URL}")

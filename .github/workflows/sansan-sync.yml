@@ -42,7 +42,7 @@ jobs:
           TOKEN_IN: ${{ github.event.inputs.pageToken }}
         run: |
           set -u
-          URL="https://devlop-beta.vercel.app/api/crm/sansan-sync"
+          URL="https://portal.esco-duct.com/api/crm/sansan-sync"
           Q=""
           [ -n "${SINCE_IN}" ] && Q="${Q}&since=${SINCE_IN}"
           [ -n "${UNTIL_IN}" ] && Q="${Q}&until=${UNTIL_IN}"

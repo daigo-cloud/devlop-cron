@@ -21,7 +21,7 @@ jobs:
         run: |
           HTTP_STATUS=$(curl -s -o /tmp/erp_notify_body -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://devlop-beta.vercel.app/api/erp/cron/notifications")
+            "https://portal.esco-duct.com/api/erp/cron/notifications")
           echo "HTTP status: $HTTP_STATUS"
           cat /tmp/erp_notify_body || true
           echo ""

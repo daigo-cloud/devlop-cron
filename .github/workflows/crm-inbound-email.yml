@@ -30,7 +30,7 @@ jobs:
         run: |
           set -u
           TAKE="${TAKE_IN:-25}"
-          URL="https://devlop-beta.vercel.app/api/crm/inbound-email?take=${TAKE}"
+          URL="https://portal.esco-duct.com/api/crm/inbound-email?take=${TAKE}"
           echo "== GET ${URL}"
           code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${URL}")

@@ -24,7 +24,7 @@ jobs:
         run: |
           HTTP_STATUS=$(curl -s -o /tmp/remind_body -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://devlop-beta.vercel.app/api/actionplan/cron/record-reminders")
+            "https://portal.esco-duct.com/api/actionplan/cron/record-reminders")
           echo "HTTP status: $HTTP_STATUS"
           echo "Response:"
           cat /tmp/remind_body || true

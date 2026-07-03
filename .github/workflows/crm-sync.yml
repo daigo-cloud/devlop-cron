@@ -41,7 +41,7 @@ jobs:
           SINCE_IN: ${{ github.event.inputs.since }}
         run: |
           set -u
-          BASE="https://devlop-beta.vercel.app/api/crm/sync"
+          BASE="https://portal.esco-duct.com/api/crm/sync"
 
           # 対象種別: only 指定があればそれ1種、無ければ全7種
           if [ -n "${ONLY_IN}" ]; then

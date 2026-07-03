@@ -24,7 +24,7 @@ jobs:
         run: |
           HTTP_STATUS=$(curl -s -o /tmp/sync_body -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://devlop-beta.vercel.app/api/erp/sf-sync")
+            "https://portal.esco-duct.com/api/erp/sf-sync")
           echo "HTTP status: $HTTP_STATUS"
           echo "Response:"
           cat /tmp/sync_body || true

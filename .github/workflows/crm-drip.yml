@@ -23,7 +23,7 @@ jobs:
       - name: Run drip programs
         run: |
           set -u
-          URL="https://devlop-beta.vercel.app/api/crm/drip/run"
+          URL="https://portal.esco-duct.com/api/crm/drip/run"
           echo "== GET ${URL}"
           code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${URL}")

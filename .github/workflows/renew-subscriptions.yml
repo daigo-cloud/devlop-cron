@@ -23,7 +23,7 @@ jobs:
         run: |
           HTTP_STATUS=$(curl -s -o /tmp/renew_body -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://devlop-beta.vercel.app/api/admin/subscriptions/renew")
+            "https://portal.esco-duct.com/api/admin/subscriptions/renew")
           echo "HTTP status: $HTTP_STATUS"
           echo "Response:"
           cat /tmp/renew_body || true

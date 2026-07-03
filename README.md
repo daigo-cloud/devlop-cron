@@ -6,7 +6,7 @@
 **ソースを一切含まない curl だけの schedule ワークフロー**をこの公開リポへ分離する。
 公開リポの GitHub Actions は分数無制限・無料。
 
-各ワークフローは `https://devlop-beta.vercel.app/api/...` のエンドポイントを
+各ワークフローは `https://portal.esco-duct.com/api/...` のエンドポイントを
 `Authorization: Bearer ${{ secrets.CRON_SECRET }}` で叩くだけ。
 業務ロジック・ソースコードはここには無く、本体 private リポに残る。
 

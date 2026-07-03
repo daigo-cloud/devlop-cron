@@ -19,7 +19,7 @@ jobs:
         run: |
           HTTP_STATUS=$(curl -s -o /tmp/body -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://devlop-beta.vercel.app/api/admin/notifications/teams-sync")
+            "https://portal.esco-duct.com/api/admin/notifications/teams-sync")
           echo "HTTP status: $HTTP_STATUS"
           cat /tmp/body || true
           echo ""

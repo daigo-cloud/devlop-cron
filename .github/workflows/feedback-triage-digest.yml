@@ -20,7 +20,7 @@ jobs:
         run: |
           HTTP_STATUS=$(curl -s -o /tmp/body -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://devlop-beta.vercel.app/api/feedback/triage/digest")
+            "https://portal.esco-duct.com/api/feedback/triage/digest")
           echo "HTTP status: $HTTP_STATUS"
           cat /tmp/body || true; echo ""
           if [ "$HTTP_STATUS" != "200" ]; then

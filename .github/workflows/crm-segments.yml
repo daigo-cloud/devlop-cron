@@ -1,0 +1,32 @@
+# CRM セグメント評価: 動的セグメント（AEセグメンテーションリスト代替）のメンバーを日次で洗い替え。
+# 公開リポ devlop-cron で実行（private Actions 課金を避ける）。
+# エンドポイントは CRON_SECRET(Bearer) で保護済み。
+# 前提: 本番に devlop PR#513（AE移設 P0〜P5）デプロイ済み。
+name: crm-segments
+
+on:
+  schedule:
+    # 毎日 06:40 JST（UTC 21:40・crm-sync 06:00 の後に評価する）。
+    - cron: "40 21 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate dynamic segments
+        run: |
+          set -u
+          URL="https://devlop-beta.vercel.app/api/crm/segments/evaluate"
+          echo "== GET ${URL}"
+          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${URL}")
+          echo "HTTP ${code}"
+          head -c 1500 /tmp/out.json 2>/dev/null || true
+          echo ""
+          [ "${code}" = "200" ] || { echo "!! crm-segments failed (HTTP ${code})"; exit 1; }
+          echo "Segment evaluation completed."

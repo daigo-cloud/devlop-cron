@@ -1,0 +1,34 @@
+# CRM ナーチャリング実行: ドリップ（AE Engagement Studio代替）の自動エンロール＋期日到来分の送信。
+# 公開リポ devlop-cron で実行（private Actions 課金を避ける）。
+# エンドポイントは CRON_SECRET(Bearer) で保護済み。
+# 実送信は本体側の二重ゲート（EMAIL_SENDING_ENABLED＋ACS_CONNECTION_STRING）準拠。
+# ゲートが閉じている間は自動エンロールのみ＝warmup前に回しても安全。
+# 前提: 本番に devlop PR#513（AE移設 P0〜P5）デプロイ済み。
+name: crm-drip
+
+on:
+  schedule:
+    # 毎日 07:20 JST（UTC 22:20・セグメント評価 06:40 の後に処理する）。
+    - cron: "20 22 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run drip programs
+        run: |
+          set -u
+          URL="https://devlop-beta.vercel.app/api/crm/drip/run"
+          echo "== GET ${URL}"
+          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${URL}")
+          echo "HTTP ${code}"
+          head -c 1500 /tmp/out.json 2>/dev/null || true
+          echo ""
+          [ "${code}" = "200" ] || { echo "!! crm-drip failed (HTTP ${code})"; exit 1; }
+          echo "Drip run completed."

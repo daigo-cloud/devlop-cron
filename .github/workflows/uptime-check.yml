@@ -1,0 +1,40 @@
+name: Uptime Check (portal.esco-duct.com)
+
+# 本番 portal.esco-duct.com（Azure App Service East）の死活監視。
+# 公開リポの GitHub Actions は無料のため、Vercel Hobby cron 制約の対象外。
+# 失効なし・外形監視のみ（curl するだけ＝AGENTS.md の方針どおり devlop-cron に配置）。
+# 失敗時はワークフローが赤くなり GitHub がリポ管理者へ通知する。
+on:
+  # 15分毎に外形監視
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: HTTP 200 health check (with retries)
+        run: |
+          URL="https://portal.esco-duct.com/api/auth/providers"
+          # 一時的なネットワーク揺らぎを除くため最大3回リトライ（10秒間隔）。
+          for i in 1 2 3; do
+            CODE=$(curl -s -o /tmp/body -w "%{http_code}" -m 30 "$URL" || echo "000")
+            echo "attempt $i: HTTP $CODE"
+            if [ "$CODE" = "200" ]; then
+              # サインインプロバイダ(azure-ad)が返っていることも確認＝アプリ層まで生存
+              if grep -q "azure-ad" /tmp/body; then
+                echo "OK: portal.esco-duct.com is healthy (200 + azure-ad provider)."
+                exit 0
+              fi
+              echo "warn: 200 but expected provider not found in body"
+            fi
+            [ "$i" != "3" ] && sleep 10
+          done
+          echo "FAIL: portal.esco-duct.com が3回とも正常応答しませんでした（最後のHTTP=$CODE）。"
+          echo "本番(Azure East)がダウンしている可能性。ロールバックはcPanelでportalのCNAME削除→A 76.76.21.21復元。"
+          exit 1

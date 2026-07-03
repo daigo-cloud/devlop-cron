@@ -1,0 +1,36 @@
+name: Renew Graph Subscriptions
+
+on:
+  # 15分毎に更新（Graph の chatMessage 購読は最大60分で失効するため）。
+  # 旧 devlop リポの renew-subscriptions.yml（#207 で費用削減のため廃止）の復活。
+  # 公開リポの Actions は無料のためコスト前提は無し。
+  # lifecycle 通知（webhook）だけに頼ると1回の取りこぼしで購読が恒久失効する
+  # （2026-06-26 に実害）ため、外部駆動の更新を安全網として常設する。
+  schedule:
+    - cron: "*/15 * * * *"
+  # 手動実行（失効時の即時再購読に使う。renew エンドポイントは404時に自動再作成する）
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call subscription renew endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/renew_body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://devlop-beta.vercel.app/api/admin/subscriptions/renew")
+          echo "HTTP status: $HTTP_STATUS"
+          echo "Response:"
+          cat /tmp/renew_body || true
+          echo ""
+          # 更新/再作成に失敗があるとエンドポイントが 500 を返す（ポータルお知らせにも記録される）
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Renew endpoint returned non-200 status: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Renew check completed."

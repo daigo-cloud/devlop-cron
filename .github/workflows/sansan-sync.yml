@@ -1,0 +1,58 @@
+# Sansan Open API 直結の名刺同期（devlop /api/crm/sansan-sync を呼ぶ）。
+# 公開リポ devlop-cron で実行（private Actions 課金を避ける）。
+# エンドポイントは CRON_SECRET(Bearer) で保護済み。SANSAN_API_KEY 未設定時は no-op 応答。
+#
+# 使い方:
+#   - 自動(毎日 06:20 JST): 直近30時間の差分を取込（crm-sync 06:00 の後）。
+#   - 手動 dispatch: since/until/pageToken を指定可。
+#     フルバックフィルは since=2015-01-01T00:00:00Z 等で実行し、
+#     done=false が返ったらレスポンスの nextPageToken を pageToken に入れて再実行。
+name: sansan-sync
+
+on:
+  schedule:
+    - cron: "20 21 * * *" # 06:20 JST（UTC 21:20）
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "更新絞込の起点 ISO8601（例 2026-07-01T00:00:00Z）。空=約30時間前"
+        required: false
+        default: ""
+      until:
+        description: "終点 ISO8601。空=現在"
+        required: false
+        default: ""
+      pageToken:
+        description: "続き実行用 nextPageToken（前回 done=false のとき）"
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Sansan direct bizcard sync
+        env:
+          SINCE_IN: ${{ github.event.inputs.since }}
+          UNTIL_IN: ${{ github.event.inputs.until }}
+          TOKEN_IN: ${{ github.event.inputs.pageToken }}
+        run: |
+          set -u
+          URL="https://devlop-beta.vercel.app/api/crm/sansan-sync"
+          Q=""
+          [ -n "${SINCE_IN}" ] && Q="${Q}&since=${SINCE_IN}"
+          [ -n "${UNTIL_IN}" ] && Q="${Q}&until=${UNTIL_IN}"
+          [ -n "${TOKEN_IN}" ] && Q="${Q}&pageToken=${TOKEN_IN}"
+          [ -n "${Q}" ] && URL="${URL}?${Q#&}"
+          echo "== GET ${URL}"
+          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${URL}")
+          echo "HTTP ${code}"
+          head -c 1500 /tmp/out.json 2>/dev/null || true
+          echo ""
+          [ "${code}" = "200" ] || { echo "!! sansan-sync failed (HTTP ${code})"; exit 1; }
+          echo "Sansan sync completed."

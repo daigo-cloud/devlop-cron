@@ -1,0 +1,31 @@
+name: Nippo Submission Status Notify
+
+on:
+  # 日報(nippo) の「本日の未提出者」を、部下の直属上長＋チームマネージャーへ
+  # Teams 1:1 DM で通知する。Vercel Hobby の cron 枠は使えないため
+  # GitHub Actions schedule で駆動する（AGENTS.md）。
+  # 平日 JST 21:00（= UTC 12:00）。土日・平日/JST判定・冪等・Bot未設定時の no-op は
+  # エンドポイント側(/api/nippo/cron/submission-status)が正典。
+  schedule:
+    - cron: "0 12 * * 1-5" # 平日 JST 21:00
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call nippo submission-status endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://portal.esco-duct.com/api/nippo/cron/submission-status")
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/body || true; echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "submission-status endpoint returned non-200: $HTTP_STATUS"; exit 1
+          fi
+          echo "nippo submission-status notify completed."

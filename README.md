@@ -30,6 +30,7 @@ gh secret set CRON_SECRET --repo daigo-cloud/devlop-cron
 | erp-sf-sync | `0 20 * * *`（JST 05:00） | `/api/erp/sf-sync` |
 | teams-news-sync | `0 13 * * 1-5`（平日 JST 22:00） | `/api/admin/notifications/teams-sync` |
 | crm-sync | `0 21 * * *`（JST 06:00） | `/api/crm/sync` |
+| nippo-submission-status | `0 12 * * 1-5`（平日 JST 21:00） | `/api/nippo/cron/submission-status` |
 
 > エンドポイント・スケジュールの正典は本体 `devlop` の運用方針に従う。
 > 変更時は本表とワークフローを同期すること。

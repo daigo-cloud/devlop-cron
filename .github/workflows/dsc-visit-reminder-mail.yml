@@ -1,0 +1,17 @@
+name: dsc-visit-reminder-mail
+on:
+  schedule:
+    - cron: "50 23 * * *"   # JST 08:50（UTC前日23:50）
+  workflow_dispatch: {}
+concurrency:
+  group: dsc-visit-reminder-mail
+  cancel-in-progress: true
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call DSC visit-reminder-mail cron endpoint
+        run: |
+          curl -sS -f -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://portal.esco-duct.com/api/dsc/cron/visit-reminder-mail"

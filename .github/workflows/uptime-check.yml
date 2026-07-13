@@ -4,6 +4,7 @@ name: Uptime Check (portal.esco-duct.com)
 # 公開リポの GitHub Actions は無料のため、Vercel Hobby cron 制約の対象外。
 # 失効なし・外形監視のみ（curl するだけ＝AGENTS.md の方針どおり devlop-cron に配置）。
 # 失敗時はワークフローが赤くなり GitHub がリポ管理者へ通知する。
+# この監視に一本化（Power Automate の旧「アプリ監視アラート」は廃止）。失敗時はJST時刻でTeamsへ直接アラートを投稿する。
 on:
   # 15分毎に外形監視
   schedule:
@@ -19,11 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: HTTP 200 health check (with retries)
+        env:
+          WEBHOOK: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}
         run: |
           URL="https://portal.esco-duct.com/api/auth/providers"
           # 一時的なネットワーク揺らぎを除くため最大3回リトライ（10秒間隔）。
           for i in 1 2 3; do
-            CODE=$(curl -s -o /tmp/body -w "%{http_code}" -m 30 "$URL" || echo "000")
+            CODE=$(curl -s -o /tmp/body -w "%{http_code}" -m 30 "$URL")
             echo "attempt $i: HTTP $CODE"
             if [ "$CODE" = "200" ]; then
               # サインインプロバイダ(azure-ad)が返っていることも確認＝アプリ層まで生存
@@ -37,4 +40,18 @@ jobs:
           done
           echo "FAIL: portal.esco-duct.com が3回とも正常応答しませんでした（最後のHTTP=$CODE）。"
           echo "本番(Azure East)がダウンしている可能性。ロールバックはcPanelでportalのCNAME削除→A 76.76.21.21復元。"
+
+          # Teams へダウンアラートを投稿（MONITORING_TEAMS_WEBHOOK_URL 未設定ならスキップ）。
+          if [ -n "$WEBHOOK" ]; then
+            JST=$(TZ='Asia/Tokyo' date '+%Y-%m-%d %H:%M:%S JST')
+            PAYLOAD=$(cat <<EOF
+          {"type":"message","attachments":[{"contentType":"application/vnd.microsoft.card.adaptive","content":{"\$schema":"http://adaptivecards.io/schemas/adaptive-card.json","type":"AdaptiveCard","version":"1.4","body":[{"type":"TextBlock","size":"Large","weight":"Bolder","color":"Attention","text":"🚨 アプリ監視アラート"},{"type":"TextBlock","spacing":"None","isSubtle":true,"text":"${JST}"},{"type":"TextBlock","wrap":true,"text":"🔴 devlopポータル 異常検知 (HTTP ${CODE}) — https://portal.esco-duct.com/"}]}}]}
+          EOF
+          )
+            TEAMS_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 30 -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK" || echo "000")
+            echo "Teams webhook post: HTTP $TEAMS_CODE"
+          else
+            echo "MONITORING_TEAMS_WEBHOOK_URL 未設定のためTeams投稿をスキップ。"
+          fi
+
           exit 1

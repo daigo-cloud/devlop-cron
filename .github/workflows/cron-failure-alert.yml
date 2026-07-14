@@ -1,0 +1,62 @@
+name: Cron Failure Alert
+
+# devlop本番の定期実行(cron)ワークフローが失敗したらTeams「⚙インフラ運用」chへ通知する。
+# workflow_run で監視対象19本の完了を捕捉し、failure時のみアラートを投稿する。
+on:
+  workflow_run:
+    workflows:
+      - "Action Plan KPI Sync"
+      - "Action Plan Record Reminders"
+      - "Action Plan Reminders"
+      - "CAD Worksheet Import"
+      - "crm-alerts"
+      - "crm-drip"
+      - "crm-inbound-email"
+      - "crm-segments"
+      - "crm-sync"
+      - "DSC Material Request Auto-Send"
+      - "dsc-visit-reminder-mail"
+      - "ERP Notifications"
+      - "ERP SF Project Sync"
+      - "EscoBoard Worklog Reminder"
+      - "Feedback Triage Digest"
+      - "Nippo Submission Status Notify"
+      - "Renew Graph Subscriptions"
+      - "sansan-sync"
+      - "Teams News Sync"
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  alert:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
+    steps:
+      - name: Notify Teams on cron failure
+        env:
+          WEBHOOK: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "MONITORING_TEAMS_WEBHOOK_URL 未設定のためTeams投稿をスキップ。"
+            exit 0
+          fi
+
+          JST=$(TZ='Asia/Tokyo' date '+%Y-%m-%d %H:%M:%S JST')
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TITLE="🧪 cron失敗通知テスト"
+            COLOR="Good"
+            BODY="devlop-cron の失敗通知パイプライン疎通テストです（実障害ではありません）。"
+          else
+            TITLE="🔴 devlop cron 失敗検知"
+            COLOR="Attention"
+            BODY="ワークフロー: \`${{ github.event.workflow_run.name }}\`\n\n結論: failure\n\nrun: ${{ github.event.workflow_run.html_url }}"
+          fi
+
+          PAYLOAD=$(cat <<EOF
+          {"type":"message","attachments":[{"contentType":"application/vnd.microsoft.card.adaptive","content":{"\$schema":"http://adaptivecards.io/schemas/adaptive-card.json","type":"AdaptiveCard","version":"1.4","body":[{"type":"TextBlock","size":"Large","weight":"Bolder","color":"${COLOR}","text":"${TITLE}"},{"type":"TextBlock","spacing":"None","isSubtle":true,"text":"${JST}"},{"type":"TextBlock","wrap":true,"text":"${BODY}"}]}}]}
+          EOF
+          )
+
+          TEAMS_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 30 -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK" || echo "000")
+          echo "Teams webhook post: HTTP $TEAMS_CODE"

@@ -1,0 +1,30 @@
+name: GEN Daily Reconcile
+
+on:
+  # GEN移行の並行運用期（7月）に、SharePointへ手動エクスポートしたGEN CSVと
+  # EEN(本番)の差分を毎朝Teamsへ1通報告する。サーバ側で検出〜突合〜通知まで完結する
+  # endpoint を curl するだけ（DB書込みなし・報告のみ）。CSVが無くても200で正常終了。
+  # JST 7:00（UTC 22:00・毎日）。
+  schedule:
+    - cron: "0 22 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call GEN daily reconcile endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://portal.esco-duct.com/api/erp/gen-daily-reconcile")
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/body || true; echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "gen-daily-reconcile endpoint returned non-200: $HTTP_STATUS"; exit 1
+          fi
+          echo "GEN daily reconcile completed."

@@ -1,0 +1,28 @@
+name: Cron Watchdog
+
+# devlop側に保存された実行履歴を定期確認する。失敗通知とは別に、
+# GitHub Actions 自体が起動しなかった場合も検知するための無料の外部監視。
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: cron-watchdog
+  cancel-in-progress: true
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check portal cron monitoring
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -eu
+          code=$(curl -sS -o /tmp/watchdog.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "https://portal.esco-duct.com/api/internal/cron-monitoring/watchdog")
+          echo "HTTP ${code}"
+          cat /tmp/watchdog.json
+          test "${code}" = "200"

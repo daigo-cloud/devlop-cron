@@ -1,0 +1,124 @@
+name: DB Weekly Dump (Azure Blob)
+
+# 本番DB(Azure PostgreSQL Flexible Server esco-devlop-db)の週次論理バックアップ。
+# pg_dump(custom format)を取得し、非公開の Azure Blob Storage
+# (escodevlopbackup / private container db-dumps)へ格納する。
+# devlop本体の自動バックアップ(14日retentionのPITR。docs/azure-backup-restore.md)を
+# 補完する案B(論理バックアップ・週次・365日保持)。
+#
+# セキュリティ(devlop AGENTS.md S1/S4準拠):
+#   - ダンプファイルはこのリポジトリ(公開)にコミットしない・Actions artifactにも上げない。
+#     アップロード先は非公開 Blob のみ。ジョブ終了時にランナー上のダンプも明示的に削除する。
+#   - DB接続文字列は secrets.DATABASE_URL 参照のみ。set -x は使わず、値をecho/printしない。
+#     GitHub Actions は secrets.* から取得した値を自動マスクするが、本ワークフローは
+#     そもそも値をログへ出力する経路を作らない設計にしている。
+#   - Blobアップロードは Azure OIDC(devlop-cron-backup マネージドID)。ストレージアカウント
+#     キーは使わない・secretsにも保存しない。このIDは Storage Blob Data Contributor を
+#     escodevlopbackup ストレージアカウントのみにスコープして付与済み(devlop本番Webアプリの
+#     デプロイ用ID devlop-east-deployer とは別の専用IDを新規作成。理由: devlop-cron は
+#     公開リポのため、本番Webアプリへの書き込み権限を持つIDを共有すると影響範囲が
+#     不必要に広がるため)。
+#
+# 復元手順・保存先・費用の正典は devlop リポ docs/azure-backup-restore.md
+# 「週次論理バックアップ(案B)」節を参照。
+on:
+  # 毎週日曜 JST 4:00 (UTC土曜 19:00) に実行。
+  schedule:
+    - cron: "0 19 * * 6"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+# OIDC トークン発行に必須。
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  STORAGE_ACCOUNT: escodevlopbackup
+  CONTAINER: db-dumps
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # 本番DBは PostgreSQL 17。GitHub-hosted runner の既定 apt リポジトリには
+      # 17系クライアントが無いため、PGDG公式リポジトリを追加して postgresql-client-17 を導入する。
+      - name: Install PostgreSQL 17 client (pg_dump)
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      # custom format(-Fc)。--no-owner --no-acl は復元先の権限差異を避けるため
+      # (docs/azure-migration-plan.md §4-2 のダンプ/リストア手順と同方針)。
+      # DATABASE_URL は環境変数経由でのみ渡し、コマンドライン引数や echo には出さない。
+      - name: pg_dump esco-devlop-db
+        id: dump
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error::DATABASE_URL secret が未設定です"
+            exit 1
+          fi
+          DATE_JST=$(TZ='Asia/Tokyo' date '+%Y%m%d')
+          FILENAME="esco-devlop-db-${DATE_JST}.dump"
+          echo "filename=${FILENAME}" >> "$GITHUB_OUTPUT"
+          pg_dump --format=custom --no-owner --no-acl --dbname "$DATABASE_URL" -f "/tmp/${FILENAME}"
+          SIZE=$(stat -c%s "/tmp/${FILENAME}")
+          echo "dump size: ${SIZE} bytes"
+          if [ "$SIZE" -lt 1024 ]; then
+            echo "::error::ダンプサイズが異常に小さい(${SIZE} bytes)。取得失敗の疑いがあるため中断します。"
+            exit 1
+          fi
+
+      # OIDCログイン済みセッションのAADトークンでアップロード(ストレージキー不使用)。
+      - name: Upload dump to Azure Blob (private container)
+        run: |
+          set -euo pipefail
+          az storage blob upload \
+            --account-name "$STORAGE_ACCOUNT" \
+            --container-name "$CONTAINER" \
+            --name "${{ steps.dump.outputs.filename }}" \
+            --file "/tmp/${{ steps.dump.outputs.filename }}" \
+            --auth-mode login \
+            --overwrite true
+
+      # アップロード先に実在することを確認する(一覧のみ・中身は出力しない)。
+      - name: Verify blob exists
+        run: |
+          set -euo pipefail
+          FOUND=$(az storage blob list \
+            --account-name "$STORAGE_ACCOUNT" \
+            --container-name "$CONTAINER" \
+            --auth-mode login \
+            --query "[?name=='${{ steps.dump.outputs.filename }}'] | length(@)" -o tsv)
+          if [ "$FOUND" != "1" ]; then
+            echo "::error::Blobアップロード後の存在確認に失敗しました: ${{ steps.dump.outputs.filename }}"
+            exit 1
+          fi
+          echo "OK: ${{ steps.dump.outputs.filename }} が db-dumps コンテナに存在することを確認しました。"
+
+      # ランナー上のダンプ実体を明示的に削除する(artifactへは元々上げていないが、
+      # ジョブ終了までローカルディスクに平文で残さない念のための後始末)。
+      - name: Cleanup local dump file
+        if: always()
+        run: rm -f "/tmp/${{ steps.dump.outputs.filename }}"

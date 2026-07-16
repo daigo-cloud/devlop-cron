@@ -1,7 +1,7 @@
 name: Cron Failure Alert
 
 # devlop本番の定期実行(cron)ワークフローが失敗したらTeams「⚙インフラ運用」chへ通知する。
-# workflow_run で監視対象19本の完了を捕捉し、failure時のみアラートを投稿する。
+# workflow_run で監視対象20本の完了を捕捉し、failure時のみアラートを投稿する。
 on:
   workflow_run:
     workflows:
@@ -14,6 +14,7 @@ on:
       - "crm-inbound-email"
       - "crm-segments"
       - "crm-sync"
+      - "DB Weekly Dump (Azure Blob)"
       - "DSC Material Request Auto-Send"
       - "dsc-visit-reminder-mail"
       - "ERP Notifications"

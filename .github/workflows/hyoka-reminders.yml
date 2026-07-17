@@ -1,0 +1,51 @@
+name: Hyoka Reminders
+
+on:
+  # ESCO Compass(hyoka) 人事評価の締切リマインド。現在 open な期間(config PERIODS)の
+  # selfDeadline/managerDeadline/approvalDeadline と当月分の月報提出期限について、
+  # 締切7日前・前日・超過の対象者へメール＋Teams通知(カテゴリ"hyoka")する。
+  # Vercel Hobby の cron 枠は使えないため GitHub Actions schedule で駆動する（AGENTS.md）。
+  # 毎日 JST 09:00 頃（UTC 00:15 = JST 09:15）。UTC 00:00 ちょうどは
+  # action-plan-record-reminders / cad-import-sync / crm-inbound-email / dsc-material-send
+  # 等が集中するため 15分ずらして分散させる。
+  # open期間なし・冪等・メール未設定時の no-op はエンドポイント側(/api/hyoka/reminders)が正典。
+  schedule:
+    - cron: "15 0 * * *"
+  # 手動実行（dryRun=1 で対象一覧のみ返し、実送信せず疎通確認できる）
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: "1 で対象一覧のみ返し実送信しない（疎通確認）"
+        required: false
+        default: ""
+
+# 同一ワークフローの連続起動では古い実行をキャンセルし多重実行を防ぐ。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call hyoka reminders endpoint
+        env:
+          DRY_RUN_IN: ${{ github.event.inputs.dryRun }}
+        run: |
+          set -u
+          URL="https://portal.esco-duct.com/api/hyoka/reminders"
+          [ "${DRY_RUN_IN}" = "1" ] && URL="${URL}?dryRun=1"
+          echo "== POST ${URL}"
+          HTTP_STATUS=$(curl -sS -o /tmp/hyoka_body -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${URL}")
+          echo "HTTP status: $HTTP_STATUS"
+          echo "Response:"
+          cat /tmp/hyoka_body || true
+          echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "hyoka reminders endpoint returned non-200 status: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Hyoka reminders check completed."

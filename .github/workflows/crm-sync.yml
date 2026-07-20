@@ -6,11 +6,15 @@
 #   1種ずつ(?only=)順番に叩く。日次は差分(?since=)で軽く、手動は全件バックフィル可。
 #
 # 使い方:
-#   - 自動(毎日 06:00 JST): 全7種を「約30時間前からの差分」で順次同期。
+#   - 自動(毎日 06:00 JST): 全10種を「約30時間前からの差分」で順次同期。
 #   - 手動 dispatch:
 #       only 指定 + since 空        → その1種を【全件】バックフィル
 #       only 指定 + since 指定      → その1種を指定起点から差分
-#       only 空   + since 指定      → 全7種を指定起点から差分
+#       only 空   + since 指定      → 全10種を指定起点から差分
+#
+# ★DSC Postgres書込テーブルPhase1: dsccalls/dsccampaigns/dsccampaignmembers を追加(2026-07-21)。
+#   dsccampaigns は dsccampaignmembers より先に実行すること（campaignSfId が
+#   DscCampaign.sfId への外部キーのため。順序は modules/crm/server/sync.ts のコメント参照）。
 name: crm-sync
 
 on:
@@ -19,7 +23,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "対象を限定 (properties|accounts|contacts|events|tasks|leads|bizcards)。空=全種"
+        description: "対象を限定 (properties|accounts|contacts|events|tasks|leads|bizcards|dsccalls|dsccampaigns|dsccampaignmembers)。空=全種"
         required: false
         default: ""
       since:
@@ -43,11 +47,12 @@ jobs:
           set -u
           BASE="https://portal.esco-duct.com/api/crm/sync"
 
-          # 対象種別: only 指定があればそれ1種、無ければ全7種
+          # 対象種別: only 指定があればそれ1種、無ければ全10種
+          # (dsccampaigns は dsccampaignmembers より先に置くこと。FK: campaignSfId → DscCampaign.sfId)
           if [ -n "${ONLY_IN}" ]; then
             TYPES="${ONLY_IN}"
           else
-            TYPES="properties accounts contacts events tasks leads bizcards"
+            TYPES="properties accounts contacts events tasks leads bizcards dsccalls dsccampaigns dsccampaignmembers"
           fi
 
           # 差分起点 since の決定:

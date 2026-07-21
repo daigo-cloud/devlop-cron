@@ -1,0 +1,34 @@
+# CRM予約メール(予約送信ランナー)。
+# 監視レジストリ(devlop lib/monitoring/cron.ts jobKey `crm/email`・期待60分)には
+# 登録済みだったが、呼び出し元のGitHub Actionsワークフローが未作成だった対応漏れ
+# (2026-07-21 watchdog stale検知)を解消するために新設。
+# 公開リポ devlop-cron で実行（private Actions 課金を避ける）。
+# エンドポイントは CRON_SECRET(Bearer) で保護済み。
+name: CRM Scheduled Email Send
+
+on:
+  schedule:
+    # 毎時（分を7にずらしてGitHub Actionsの毎時00分混雑による遅延を緩和）。
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger CRM scheduled email send
+        run: |
+          set -u
+          URL="https://portal.esco-duct.com/api/crm/email/cron"
+          echo "== GET ${URL}"
+          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${URL}")
+          echo "HTTP ${code}"
+          head -c 1200 /tmp/out.json 2>/dev/null || true
+          echo ""
+          [ "${code}" = "200" ] || { echo "!! crm/email cron failed (HTTP ${code})"; exit 1; }
+          echo "CRM scheduled email send completed."

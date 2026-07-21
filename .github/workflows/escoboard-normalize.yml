@@ -1,0 +1,31 @@
+name: EscoBoard Daily Normalize
+
+on:
+  # EscoBoardブロックの日次正規化(深夜0時の日跨ぎ自動分割+16h自動クローズ)。
+  # 従来はdevlopのvercel.json(Vercel cron)で定義されていたが、本番はAzure
+  # (portal.esco-duct.com)でVercel cronは届かず未実行だったため、GitHub Actions
+  # scheduleへ移管(2026-07-21)。監視はwatchdogのjobKey escoboard/normalize
+  # (期待間隔1440分)。
+  schedule:
+    - cron: "0 15 * * *" # 00:00 JST（UTC 15:00）
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call EscoBoard daily normalize endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://portal.esco-duct.com/api/escoboard/cron")
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/body || true; echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "escoboard/cron endpoint returned non-200: $HTTP_STATUS"; exit 1
+          fi
+          echo "EscoBoard daily normalize completed."

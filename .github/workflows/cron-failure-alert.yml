@@ -1,7 +1,7 @@
 name: Cron Failure Alert
 
 # devlop本番の定期実行(cron)ワークフローが失敗したらTeams「⚙インフラ運用」chへ通知する。
-# workflow_run で監視対象21本の完了を捕捉し、failure時のみアラートを投稿する。
+# workflow_run で監視対象24本の完了を捕捉し、failure時のみアラートを投稿する。
 on:
   workflow_run:
     workflows:
@@ -9,6 +9,7 @@ on:
       - "Action Plan Record Reminders"
       - "Action Plan Reminders"
       - "CAD Worksheet Import"
+      - "CRM Scheduled Email Send"
       - "crm-alerts"
       - "crm-drip"
       - "crm-inbound-email"
@@ -19,9 +20,11 @@ on:
       - "dsc-visit-reminder-mail"
       - "ERP Notifications"
       - "ERP SF Project Sync"
+      - "EscoBoard Daily Normalize"
       - "EscoBoard Worklog Reminder"
       - "Feedback Triage Digest"
       - "Hyoka Reminders"
+      - "Nippo Reminder Dispatch"
       - "Nippo Submission Status Notify"
       - "Renew Graph Subscriptions"
       - "sansan-sync"

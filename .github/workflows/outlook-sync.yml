@@ -1,0 +1,42 @@
+# Outlook予定の自動取込（devlop本番 /api/crm/outlook-sync を定期実行）。
+# 公開リポ devlop-cron で実行（private Actions 課金を避けるため）。
+# エンドポイントは CRON_SECRET(Bearer) で保護済み。URL は公開情報のため直書き。
+#
+# devlop側実装: lib/crm/outlook-sync.ts（app-only Graph / Calendars.Read）。
+# 取込対象ユーザーは本番 App Service のアプリ設定 OUTLOOK_SYNC_USERS（UPNカンマ区切り）。
+# 取込窓は「過去days日〜翌日」。毎時実行することで当日・翌日の予定がほぼ常に最新になる。
+name: outlook-sync
+
+on:
+  schedule:
+    - cron: "0 * * * *" # 毎時00分（JST全時間帯）
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "過去何日分まで取り込むか（既定14）"
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Outlook calendar sync
+        env:
+          DAYS_IN: ${{ github.event.inputs.days }}
+        run: |
+          set -u
+          URL="https://portal.esco-duct.com/api/crm/outlook-sync"
+          [ -n "${DAYS_IN}" ] && URL="${URL}?days=${DAYS_IN}"
+          echo "== GET ${URL}"
+          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${URL}")
+          echo "HTTP ${code}"
+          head -c 800 /tmp/out.json 2>/dev/null || true
+          echo ""
+          [ "${code}" = "200" ] || { echo "outlook sync failed (HTTP ${code})"; exit 1; }
+          echo "Outlook sync completed."

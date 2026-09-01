@@ -1,0 +1,39 @@
+name: Sales Refresh
+
+on:
+  # EscoSales（devlop統合ポータル /sales）の日次取込。
+  # CRM/ERP/EscoBoard/行動計画ミラーからの差分反映を行う「curl するだけ」ワークフロー
+  # （ロジックはdevlop本体・エンドポイントはCRON_SECRETで保護済み）。
+  # Mac版esco-salesの旧LaunchAgentと同じ時刻感覚を踏襲し、毎朝 JST 5:30（= UTC 20:30・前日）に実行する。
+  #
+  # ⚠ マージは切替（カットオーバー）作業時のみ行うこと。正典: devlop docs/sales-cutover-runbook.md。
+  # 先にマージするとSales*テーブルが空のうちにこのcronが独自データを作ってしまい、
+  # Macからのデータ移行と衝突するため、必ずデータ移行の完了後に有効化する。
+  schedule:
+    - cron: "30 20 * * *"
+  # 手動実行
+  workflow_dispatch:
+
+# 同一ワークフローの連続起動では古い実行をキャンセルし多重実行を防ぐ。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Sales refresh endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/refresh_body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://portal.esco-duct.com/api/sales/cron/refresh")
+          echo "HTTP status: $HTTP_STATUS"
+          echo "Response:"
+          cat /tmp/refresh_body || true
+          echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Sales refresh endpoint returned non-200 status: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Sales refresh completed."

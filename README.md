@@ -32,6 +32,7 @@ gh secret set CRON_SECRET --repo daigo-cloud/devlop-cron
 | crm-sync | `0 21 * * *`（JST 06:00） | `/api/crm/sync` |
 | nippo-submission-status | `0 12 * * 1-5`（平日 JST 21:00） | `/api/nippo/cron/submission-status` |
 | hyoka-reminders | `15 0 * * *`（毎日 JST 09:15） | `/api/hyoka/reminders`（`?dryRun=1` で疎通確認可） |
+| rules-ledger-escalate | `5 23 * * *`（毎日 JST 08:05） | `/api/rules-ledger/cron/escalate` |
 
 > エンドポイント・スケジュールの正典は本体 `devlop` の運用方針に従う。
 > 変更時は本表とワークフローを同期すること。

@@ -1,0 +1,37 @@
+name: Rules Ledger Escalate
+
+on:
+  # 決めごと台帳: ACTIVEな決めごとの次回Run（PENDING）自動生成＋期限超過Runの
+  # エスカレーション判定（段階1/2=オーナーDM、段階3=社長DM＋公開掲示）。
+  # devlopのlib/monitoring/cron.ts CRON_JOBSに"rules-ledger/escalate"として
+  # 毎日1回の想定で登録済み（stale判定 expectedMinutes=24h）。
+  # Vercel Hobby の cron 枠は使えないため GitHub Actions schedule で駆動する（AGENTS.md）。
+  # 毎日 JST 08:05（UTC 23:05）。冪等: エンドポイント側(GET /api/rules-ledger/cron/escalate)が
+  # 同日の重複実行を吸収するためstepの再実行は安全。
+  schedule:
+    - cron: "5 23 * * *"
+  workflow_dispatch:
+
+# 同一ワークフローの連続起動では古い実行をキャンセルし多重実行を防ぐ。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  escalate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call rules-ledger escalate endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/rules_ledger_body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://portal.esco-duct.com/api/rules-ledger/cron/escalate")
+          echo "HTTP status: $HTTP_STATUS"
+          echo "Response:"
+          cat /tmp/rules_ledger_body || true
+          echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "rules-ledger escalate endpoint returned non-200 status: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Rules ledger escalate check completed."

@@ -9,6 +9,10 @@ on:
   # ⚠ マージは切替（カットオーバー）作業時のみ行うこと。正典: devlop docs/sales-cutover-runbook.md。
   # 先にマージするとSales*テーブルが空のうちにこのcronが独自データを作ってしまい、
   # Macからのデータ移行と衝突するため、必ずデータ移行の完了後に有効化する。
+  #
+  # エンドポイントは1呼び出し=1バッチ（GET ?step=<1-11>&offset=<n>）の段階呼び出し方式
+  # （devlop PR #1115）。Azure App Serviceの既定リクエスト上限（約230秒）を超えないよう、
+  # レスポンスの next が null になるまでこのワークフローがループして呼び続ける。
   schedule:
     - cron: "30 20 * * *"
   # 手動実行
@@ -23,17 +27,63 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
-      - name: Call Sales refresh endpoint
+      - name: Call Sales refresh endpoint (step loop)
         run: |
-          HTTP_STATUS=$(curl -s -o /tmp/refresh_body -w "%{http_code}" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://portal.esco-duct.com/api/sales/cron/refresh")
-          echo "HTTP status: $HTTP_STATUS"
-          echo "Response:"
-          cat /tmp/refresh_body || true
-          echo ""
-          if [ "$HTTP_STATUS" != "200" ]; then
-            echo "Sales refresh endpoint returned non-200 status: $HTTP_STATUS"
-            exit 1
-          fi
-          echo "Sales refresh completed."
+          set -euo pipefail
+
+          # 無限ループ防止のガード。想定は company/contact/deal(各1回)+
+          # task/event(各数回のバッチ)+残りのステップ=概算数十回程度。
+          MAX_ITERATIONS=200
+          step=""
+          offset=""
+          i=0
+
+          while :; do
+            i=$((i + 1))
+            if [ "$i" -gt "$MAX_ITERATIONS" ]; then
+              echo "::error::sales/refresh が ${MAX_ITERATIONS} 回呼んでも完了しませんでした（無限ループ防止で停止）"
+              exit 1
+            fi
+
+            if [ -z "$step" ]; then
+              url="https://portal.esco-duct.com/api/sales/cron/refresh"
+            else
+              url="https://portal.esco-duct.com/api/sales/cron/refresh?step=${step}&offset=${offset}"
+            fi
+
+            HTTP_STATUS=$(curl -s -o /tmp/refresh_body -w "%{http_code}" \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              "$url")
+
+            echo "call #${i}: ${url}"
+            echo "HTTP status: $HTTP_STATUS"
+            echo "Response:"
+            cat /tmp/refresh_body || true
+            echo ""
+
+            if [ "$HTTP_STATUS" != "200" ]; then
+              echo "::error::sales/refresh endpoint returned non-200 status: $HTTP_STATUS"
+              exit 1
+            fi
+
+            ok=$(jq -r '.ok' /tmp/refresh_body)
+            if [ "$ok" != "true" ]; then
+              echo "::error::sales/refresh がok=falseを返しました"
+              exit 1
+            fi
+
+            cur_step=$(jq -r '.step // empty' /tmp/refresh_body)
+            cur_offset=$(jq -r '.offset // empty' /tmp/refresh_body)
+            echo "processed: step=${cur_step} offset=${cur_offset}"
+
+            next_step=$(jq -r '.next.step // empty' /tmp/refresh_body)
+            next_offset=$(jq -r '.next.offset // empty' /tmp/refresh_body)
+
+            if [ -z "$next_step" ]; then
+              echo "Sales refresh completed（${i}回の呼び出しで全ステップ完了）。"
+              break
+            fi
+
+            step="$next_step"
+            offset="$next_offset"
+          done

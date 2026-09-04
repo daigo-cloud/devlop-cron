@@ -1,0 +1,30 @@
+name: Cashflow SharePoint Poll
+
+on:
+  # 資金繰り SharePoint 自動取込ループ(devlop側 docs/cashflow-sp-auto-import.md が正典)。
+  # SharePoint更新を検知→取込プレビューを自動作成→Teams通知。確定反映(commit)はしない
+  # (社長がポータルで承認するまで反映されない・Human-On-The-Loop)。
+  # JST平日 9:10 / 15:10(UTC 0:10 / 6:10 の月〜金)。
+  schedule:
+    - cron: "10 0,6 * * 1-5"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call cashflow sp-poll endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://portal.esco-duct.com/api/cashflow/import/sp-poll")
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/body || true; echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "sp-poll endpoint returned non-200: $HTTP_STATUS"; exit 1
+          fi
+          echo "cashflow sp-poll completed."

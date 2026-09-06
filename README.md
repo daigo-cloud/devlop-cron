@@ -28,6 +28,7 @@ gh secret set CRON_SECRET --repo daigo-cloud/devlop-cron
 | action-plan-reminders | `33 0 * * 1`（JST 09:33） / `39 0 5 * *`（JST 09:39） | `/api/actionplan/cron/reminders` |
 | erp-notifications | `37 23 * * *`（JST 08:37） | `/api/erp/cron/notifications` |
 | erp-sf-sync | `45 20 * * *`（JST 05:45） | `/api/erp/sf-sync` |
+| estimate-intake-sync | `7 21 * * *`（JST 06:07） | `/api/estimate/intake/sync` |
 | teams-news-sync | `21 13 * * 1-5`（平日 JST 22:21） | `/api/admin/notifications/teams-sync` |
 | crm-sync | `31 21 * * *`（JST 06:31） | `/api/crm/sync` |
 | nippo-submission-status | `57 12 * * 1-5`（平日 JST 21:57） | `/api/nippo/cron/submission-status` |

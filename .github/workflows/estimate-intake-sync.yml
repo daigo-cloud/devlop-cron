@@ -1,0 +1,38 @@
+name: Estimate Intake Sync
+
+on:
+  # 業務依頼アプリ（Power Automate → SharePoint「案件」表）からの自動登録を
+  # ポータルのEstProject/EstProjectIntakeへ日次で取り込む。
+  # 毎日 06:07 JST（= UTC 21:07）。他のestimate/erp系cronと時間帯をずらす。
+  schedule:
+    - cron: "7 21 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Estimate intake sync endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/sync_body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://portal.esco-duct.com/api/estimate/intake/sync")
+          echo "HTTP status: $HTTP_STATUS"
+          echo "Response:"
+          cat /tmp/sync_body || true
+          echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Estimate intake sync endpoint returned non-200 status: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Estimate intake sync completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

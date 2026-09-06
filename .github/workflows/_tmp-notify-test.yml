@@ -6,6 +6,11 @@ name: TMP Notify Failure Test
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/reduce-schedule-delay
+    paths:
+      - ".github/workflows/_tmp-notify-test.yml"
 
 jobs:
   force-fail:

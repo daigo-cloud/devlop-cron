@@ -4,7 +4,7 @@ name: Cron Watchdog
 # GitHub Actions 自体が起動しなかった場合も検知するための無料の外部監視。
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "53 * * * *"
   workflow_dispatch: {}
 
 concurrency:

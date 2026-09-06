@@ -4,7 +4,7 @@ on:
   # 平日日中（JST 9〜19時台）に毎時同期。
   # Hobby プランの Vercel cron は1日1回まで（かつ既に2件使用中）なので GitHub Actions で駆動する
   schedule:
-    - cron: "0 0-10 * * 1-5" # UTC 0-10 = JST 9-19
+    - cron: "41 0-10 * * 1-5" # UTC 0-10 = JST 9-19
   # 手動実行
   workflow_dispatch:
 
@@ -32,3 +32,9 @@ jobs:
             exit 1
           fi
           echo "CAD import sync completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

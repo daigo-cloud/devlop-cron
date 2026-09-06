@@ -22,9 +22,9 @@ name: DB Weekly Dump (Azure Blob)
 # 復元手順・保存先・費用の正典は devlop リポ docs/azure-backup-restore.md
 # 「週次論理バックアップ(案B)」節を参照。
 on:
-  # 毎週日曜 JST 4:00 (UTC土曜 19:00) に実行。
+  # 毎週日曜 JST 4:29 (UTC土曜 19:29) に実行。
   schedule:
-    - cron: "0 19 * * 6"
+    - cron: "29 19 * * 6"
   workflow_dispatch:
 
 concurrency:
@@ -129,3 +129,9 @@ jobs:
       - name: Cleanup local dump file
         if: always()
         run: rm -f "/tmp/${{ steps.dump.outputs.filename }}"
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

@@ -9,7 +9,7 @@ name: outlook-sync
 
 on:
   schedule:
-    - cron: "0 * * * *" # 毎時00分（JST全時間帯）
+    - cron: "59 * * * *" # 毎時59分（JST全時間帯）
   workflow_dispatch:
     inputs:
       days:

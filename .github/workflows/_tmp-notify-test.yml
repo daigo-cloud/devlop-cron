@@ -1,0 +1,26 @@
+name: TMP Notify Failure Test
+
+# 一時検証用ワークフロー。composite action .github/actions/notify-failure が
+# 実際にTeamsへ失敗通知を届けることを確認するためだけに存在する。
+# 確認後は削除する（本番運用に残さない）。
+
+on:
+  workflow_dispatch:
+
+jobs:
+  force-fail:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (for local composite action reference)
+        uses: actions/checkout@v4
+
+      - name: Intentionally fail
+        run: |
+          echo "この失敗は通知疎通テストのための意図的な失敗です。"
+          exit 1
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

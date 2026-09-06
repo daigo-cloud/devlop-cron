@@ -3,9 +3,9 @@ name: ERP Notifications
 on:
   # 基幹システムのTeams定期通知（K-04）。締め日前の未確定伝票・前月の未承認売上リスト。
   # Vercel Hobby の cron 枠（日次2件）は埋まっているため GitHub Actions schedule で駆動する。
-  # 毎朝 JST 08:00（UTC 23:00）。二重送信はエンドポイント側が ErpNotifyLog で抑制する。
+  # 毎朝 JST 08:37（UTC 23:37）。二重送信はエンドポイント側が ErpNotifyLog で抑制する。
   schedule:
-    - cron: "0 23 * * *"
+    - cron: "37 23 * * *"
   workflow_dispatch:
 
 # 同一ワークフローの連続起動では古い実行をキャンセルし多重実行を防ぐ。
@@ -30,3 +30,9 @@ jobs:
             exit 1
           fi
           echo "ERP notification check completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

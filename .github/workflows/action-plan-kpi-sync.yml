@@ -4,9 +4,9 @@ on:
   # 営業KPI（訪問・見積・受注）を Salesforce から自動同期（前月＋今月）。
   # Vercel Hobby の cron は1日1件（escoboard/cron）で枠が埋まっているため、
   # ここは GitHub Actions schedule で駆動する（AGENTS.md の制約に準拠）。
-  # 毎日 01:00 JST（= UTC 16:00）。SF未設定なら endpoint 側が安全に no-op。
+  # 毎日 01:23 JST（= UTC 16:23）。SF未設定なら endpoint 側が安全に no-op。
   schedule:
-    - cron: "0 16 * * *" # 毎日 01:00 JST
+    - cron: "23 16 * * *" # 毎日 01:23 JST
   # 手動実行
   workflow_dispatch:
 
@@ -33,3 +33,9 @@ jobs:
             exit 1
           fi
           echo "KPI sync completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

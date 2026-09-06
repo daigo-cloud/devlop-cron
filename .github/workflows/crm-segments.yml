@@ -30,3 +30,9 @@ jobs:
           echo ""
           [ "${code}" = "200" ] || { echo "!! crm-segments failed (HTTP ${code})"; exit 1; }
           echo "Segment evaluation completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

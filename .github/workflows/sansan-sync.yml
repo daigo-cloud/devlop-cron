@@ -56,3 +56,9 @@ jobs:
           echo ""
           [ "${code}" = "200" ] || { echo "!! sansan-sync failed (HTTP ${code})"; exit 1; }
           echo "Sansan sync completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

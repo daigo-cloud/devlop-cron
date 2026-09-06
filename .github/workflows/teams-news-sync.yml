@@ -1,10 +1,10 @@
 name: Teams News Sync
 
 on:
-  # 平日 22:00 JST（UTC 13:00）に1日1回、Teamsチャンネルの新着を「お知らせ」へ取込む。
+  # 平日 22:21 JST（UTC 13:21）に1日1回、Teamsチャンネルの新着を「お知らせ」へ取込む。
   # 旧 renew-subscriptions（毎15分）を置き換え、GitHub Actions 消費を大幅削減する。
   schedule:
-    - cron: "0 13 * * 1-5"
+    - cron: "21 13 * * 1-5"
   workflow_dispatch:
 
 concurrency:
@@ -28,3 +28,9 @@ jobs:
             exit 1
           fi
           echo "Teams news sync completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

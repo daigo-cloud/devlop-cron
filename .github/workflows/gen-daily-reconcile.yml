@@ -4,9 +4,9 @@ on:
   # GEN移行の並行運用期（7月）に、SharePointへ手動エクスポートしたGEN CSVと
   # EEN(本番)の差分を毎朝Teamsへ1通報告する。サーバ側で検出〜突合〜通知まで完結する
   # endpoint を curl するだけ（DB書込みなし・報告のみ）。CSVが無くても200で正常終了。
-  # JST 7:00（UTC 22:00・毎日）。
+  # JST 7:55（UTC 22:55・毎日）。
   schedule:
-    - cron: "0 22 * * *"
+    - cron: "55 22 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -28,3 +28,9 @@ jobs:
             echo "gen-daily-reconcile endpoint returned non-200: $HTTP_STATUS"; exit 1
           fi
           echo "GEN daily reconcile completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

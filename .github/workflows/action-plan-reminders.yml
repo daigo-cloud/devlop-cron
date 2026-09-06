@@ -3,11 +3,11 @@ name: Action Plan Reminders
 on:
   # 行動計画の未提出/未FB 定期リマインド（フェーズ2 C）。
   # Vercel Hobby の cron は日次2件で枠が埋まっているため GitHub Actions schedule で駆動する。
-  # 毎週月曜 と 毎月5日（JST 09:00 = UTC 00:00）。重複日(月曜=5日)はエンドポイント側が
+  # 毎週月曜（JST 09:33）と 毎月5日（JST 09:39）（UTC 00:33 / 00:39）。重複日(月曜=5日)はエンドポイント側が
   # ReminderLog で二重送信を抑制する。
   schedule:
-    - cron: "0 0 * * 1" # 毎週月曜 09:00 JST
-    - cron: "0 0 5 * *" # 毎月5日 09:00 JST
+    - cron: "33 0 * * 1" # 毎週月曜 09:33 JST
+    - cron: "39 0 5 * *" # 毎月5日 09:39 JST
   # 手動実行
   workflow_dispatch:
 
@@ -34,3 +34,9 @@ jobs:
             exit 1
           fi
           echo "Reminder check completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

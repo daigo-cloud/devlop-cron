@@ -6,8 +6,8 @@ name: crm-alerts
 
 on:
   schedule:
-    # 毎営業日 08:00 JST（UTC 23:00・曜日 Sun-Thu = JST Mon-Fri 朝）。
-    - cron: "0 23 * * 0-4"
+    # 毎営業日 08:09 JST（UTC 23:09・曜日 Sun-Thu = JST Mon-Fri 朝）。
+    - cron: "9 23 * * 0-4"
   workflow_dispatch:
     inputs:
       preview:
@@ -38,3 +38,9 @@ jobs:
           echo ""
           [ "${code}" = "200" ] || { echo "!! crm-alerts failed (HTTP ${code})"; exit 1; }
           echo "CRM alerts digest completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

@@ -8,7 +8,7 @@ on:
   # 1時間後も最大1時間粒度で拾える。夜間は送らない（業務時間内のみ）。
   # 「即時」は記録時にアプリ側が即送信するため、ここは 1時間後/翌営業日9時 と取りこぼしの保険。
   schedule:
-    - cron: "0 0-9 * * 1-5"
+    - cron: "43 0-9 * * 1-5"
   workflow_dispatch:
 
 concurrency:
@@ -30,3 +30,9 @@ jobs:
             echo "material-send endpoint returned non-200: $HTTP_STATUS"; exit 1
           fi
           echo "material auto-send completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

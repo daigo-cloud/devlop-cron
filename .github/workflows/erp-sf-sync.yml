@@ -4,10 +4,10 @@ on:
   # 物件マスタ（ErpProject）への Salesforce 商談（Opportunity）日次同期。
   # ※取引先はSFから同期しない（SFのAccountは物件名 — 2026-06-12 社長指示）。
   # Vercel Hobby の cron 枠は満杯のため GitHub Actions schedule で駆動する（AGENTS.md）。
-  # 毎日 05:00 JST（= UTC 20:00）。既存の SF 連携バッチ（KPI同期 16:00 UTC）と
+  # 毎日 05:45 JST（= UTC 20:45）。既存の SF 連携バッチ（KPI同期 16:23 UTC）と
   # 時間帯をずらして API レート共有の衝突を避ける。
   schedule:
-    - cron: "0 20 * * *"
+    - cron: "45 20 * * *"
   # 手動実行
   workflow_dispatch:
 
@@ -34,3 +34,9 @@ jobs:
             exit 1
           fi
           echo "ERP SF sync completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

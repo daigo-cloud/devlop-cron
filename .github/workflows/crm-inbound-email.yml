@@ -8,7 +8,7 @@ name: crm-inbound-email
 on:
   schedule:
     # 平日 09:00–18:00 JST を毎時（UTC 00–09 の月–金）。GitHub Actions(公開リポ)は無料。
-    - cron: "0 0-9 * * 1-5"
+    - cron: "47 0-9 * * 1-5"
   workflow_dispatch:
     inputs:
       take:
@@ -39,3 +39,9 @@ jobs:
           echo ""
           [ "${code}" = "200" ] || { echo "!! inbound-email ingest failed (HTTP ${code})"; exit 1; }
           echo "Inbound-email ingest completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

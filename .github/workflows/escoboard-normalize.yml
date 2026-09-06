@@ -7,7 +7,7 @@ on:
   # scheduleへ移管(2026-07-21)。監視はwatchdogのjobKey escoboard/normalize
   # (期待間隔1440分)。
   schedule:
-    - cron: "0 15 * * *" # 00:00 JST（UTC 15:00）
+    - cron: "49 15 * * *" # 00:49 JST（UTC 15:49）
   workflow_dispatch:
 
 concurrency:
@@ -29,3 +29,9 @@ jobs:
             echo "escoboard/cron endpoint returned non-200: $HTTP_STATUS"; exit 1
           fi
           echo "EscoBoard daily normalize completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

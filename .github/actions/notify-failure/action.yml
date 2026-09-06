@@ -1,0 +1,39 @@
+name: Notify Teams on failure
+description: >
+  devlop-cron の定期実行ワークフローが失敗した際にTeams「⚙インフラ運用」chへ通知する。
+  これが失敗通知の正典（SSOT）。各ワークフローはこのactionを if: failure() で呼ぶだけにし、
+  通知本文・Webhook送信処理をワークフロー側にコピーしない。
+  （旧 cron-failure-alert.yml の workflow_run 集約方式を置き換え。2026-09）
+
+inputs:
+  webhook-url:
+    description: "Teams incoming webhook URL（呼び出し側で secrets.MONITORING_TEAMS_WEBHOOK_URL を渡す）"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Post failure card to Teams
+      shell: bash
+      env:
+        WEBHOOK: ${{ inputs.webhook-url }}
+        WORKFLOW_NAME: ${{ github.workflow }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        if [ -z "$WEBHOOK" ]; then
+          echo "MONITORING_TEAMS_WEBHOOK_URL 未設定のためTeams投稿をスキップ。"
+          exit 0
+        fi
+
+        JST=$(TZ='Asia/Tokyo' date '+%Y-%m-%d %H:%M:%S JST')
+        TITLE="🔴 devlop cron 失敗検知"
+        COLOR="Attention"
+        BODY="ワークフロー: \`${WORKFLOW_NAME}\`\n\n結論: failure\n\nrun: ${RUN_URL}"
+
+        PAYLOAD=$(cat <<EOF
+        {"type":"message","attachments":[{"contentType":"application/vnd.microsoft.card.adaptive","content":{"\$schema":"http://adaptivecards.io/schemas/adaptive-card.json","type":"AdaptiveCard","version":"1.4","body":[{"type":"TextBlock","size":"Large","weight":"Bolder","color":"${COLOR}","text":"${TITLE}"},{"type":"TextBlock","spacing":"None","isSubtle":true,"text":"${JST}"},{"type":"TextBlock","wrap":true,"text":"${BODY}"}]}}]}
+        EOF
+        )
+
+        TEAMS_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 30 -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK" || echo "000")
+        echo "Teams webhook post: HTTP $TEAMS_CODE"

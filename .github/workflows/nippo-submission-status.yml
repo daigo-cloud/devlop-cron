@@ -4,10 +4,10 @@ on:
   # 日報(nippo) の「本日の未提出者」を、部下の直属上長＋チームマネージャーへ
   # Teams 1:1 DM で通知する。Vercel Hobby の cron 枠は使えないため
   # GitHub Actions schedule で駆動する（AGENTS.md）。
-  # 平日 JST 21:00（= UTC 12:00）。土日・平日/JST判定・冪等・Bot未設定時の no-op は
+  # 平日 JST 21:57（= UTC 12:57）。土日・平日/JST判定・冪等・Bot未設定時の no-op は
   # エンドポイント側(/api/nippo/cron/submission-status)が正典。
   schedule:
-    - cron: "0 12 * * 1-5" # 平日 JST 21:00
+    - cron: "57 12 * * 1-5" # 平日 JST 21:57
   workflow_dispatch:
 
 concurrency:
@@ -29,3 +29,9 @@ jobs:
             echo "submission-status endpoint returned non-200: $HTTP_STATUS"; exit 1
           fi
           echo "nippo submission-status notify completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

@@ -27,3 +27,9 @@ jobs:
             echo "digest endpoint returned non-200: $HTTP_STATUS"; exit 1
           fi
           echo "feedback triage digest completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

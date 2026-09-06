@@ -22,15 +22,15 @@ gh secret set CRON_SECRET --repo daigo-cloud/devlop-cron
 
 | ファイル | スケジュール (UTC) | 叩く先 |
 |---|---|---|
-| cad-import-sync | `0 0-10 * * 1-5`（平日毎時 JST9-19） | `/api/escoboard/cad-import/sync?apply=true` |
-| action-plan-kpi-sync | `0 16 * * *`（JST 01:00） | `/api/actionplan/cron/kpi-sync` |
-| action-plan-record-reminders | `0 0 * * 1-5`（平日 JST 09:00） | `/api/actionplan/cron/record-reminders` |
-| action-plan-reminders | `0 0 * * 1` / `0 0 5 * *` | `/api/actionplan/cron/reminders` |
-| erp-notifications | `0 23 * * *`（JST 08:00） | `/api/erp/cron/notifications` |
-| erp-sf-sync | `0 20 * * *`（JST 05:00） | `/api/erp/sf-sync` |
-| teams-news-sync | `0 13 * * 1-5`（平日 JST 22:00） | `/api/admin/notifications/teams-sync` |
-| crm-sync | `0 21 * * *`（JST 06:00） | `/api/crm/sync` |
-| nippo-submission-status | `0 12 * * 1-5`（平日 JST 21:00） | `/api/nippo/cron/submission-status` |
+| cad-import-sync | `41 0-10 * * 1-5`（平日毎時 JST9-19） | `/api/escoboard/cad-import/sync?apply=true` |
+| action-plan-kpi-sync | `23 16 * * *`（JST 01:23） | `/api/actionplan/cron/kpi-sync` |
+| action-plan-record-reminders | `27 0 * * 1-5`（平日 JST 09:27） | `/api/actionplan/cron/record-reminders` |
+| action-plan-reminders | `33 0 * * 1`（JST 09:33） / `39 0 5 * *`（JST 09:39） | `/api/actionplan/cron/reminders` |
+| erp-notifications | `37 23 * * *`（JST 08:37） | `/api/erp/cron/notifications` |
+| erp-sf-sync | `45 20 * * *`（JST 05:45） | `/api/erp/sf-sync` |
+| teams-news-sync | `21 13 * * 1-5`（平日 JST 22:21） | `/api/admin/notifications/teams-sync` |
+| crm-sync | `31 21 * * *`（JST 06:31） | `/api/crm/sync` |
+| nippo-submission-status | `57 12 * * 1-5`（平日 JST 21:57） | `/api/nippo/cron/submission-status` |
 | hyoka-reminders | `15 0 * * *`（毎日 JST 09:15） | `/api/hyoka/reminders`（`?dryRun=1` で疎通確認可） |
 | rules-ledger-escalate | `5 23 * * *`（毎日 JST 08:05） | `/api/rules-ledger/cron/escalate` |
 

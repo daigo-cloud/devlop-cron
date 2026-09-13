@@ -37,3 +37,12 @@ gh secret set CRON_SECRET --repo daigo-cloud/devlop-cron
 
 > エンドポイント・スケジュールの正典は本体 `devlop` の運用方針に従う。
 > 変更時は本表とワークフローを同期すること。
+
+## 死活監視・Graph購読更新（Azure Functions 並走・2026-09-14〜）
+
+`uptime-check.yml` / `renew-subscriptions.yml` は GitHub Actions の schedule 遅延
+（アカウント側の事象で自力調整不可・実測は15分設定でも実際2〜4時間間隔）の影響を受けるため、
+同じ役割を持つ Azure Functions アプリを [`azure-functions/`](azure-functions/) に用意し**並走**させている
+（2026-09-14 社長決定）。旧 GitHub Actions 2本は削除しない（Azure側の安定を見届けてから別途削除）。
+
+詳細は [`azure-functions/README.md`](azure-functions/README.md) を参照。

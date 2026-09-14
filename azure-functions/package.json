@@ -1,0 +1,17 @@
+{
+  "name": "devlop-cron-azure-functions",
+  "version": "1.0.0",
+  "private": true,
+  "description": "devlop本番(portal.esco-duct.com)の死活監視とGraph購読更新。GitHub Actions(uptime-check.yml/renew-subscriptions.yml)と並走するAzure Functions版（2026-09-14作り直し）。",
+  "main": "src/functions/*.js",
+  "scripts": {
+    "start": "func start",
+    "test": "echo \"no unit tests (Azure Functions integration verified via Application Insights logs)\" && exit 0"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

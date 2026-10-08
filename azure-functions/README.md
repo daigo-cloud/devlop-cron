@@ -1,4 +1,4 @@
-# devlop 死活監視 / Graph購読更新（Azure Functions版）
+# devlop 死活監視 / Graph購読更新 / 緊急報告リマインド（Azure Functions版）
 
 `devlop` 本番（`https://portal.esco-duct.com`・Azure App Service Japan East
 `esco-devlop-portal-east`）の死活監視と Microsoft Graph change notification
@@ -20,6 +20,13 @@ GitHub Actions 側の schedule 遅延（アカウント側の事象で自力調�
   - `renewSubscriptions`（NCRONTAB `0 */15 * * * *`）: 同エンドポイント
     `/api/admin/subscriptions/renew` を `Authorization: Bearer <CRON_SECRET>` で呼ぶ。
     200 以外で Teams 通知。
+  - `urgentEscalationRemind`（NCRONTAB `0 */5 * * * *`）: 緊急報告の未確認リマインド
+    `/api/urgent-escalation/cron/remind` を `Authorization: Bearer <CRON_SECRET>` で呼ぶ。
+    GitHub Actions 版（`../.github/workflows/urgent-escalation-remind.yml`・毎時7分）が実測で
+    5〜8時間おきにしか起動せず、「緊急=60分後」「重要=翌朝8:30」を守れなかったため追加
+    （2026-10-08）。送信判定と1回きりの保証はポータル側が持つので、GitHub 版と並走しても二重送信しない。
+    200 以外で Teams 通知（ただし 502＝Teams DM 全件失敗・次回自動再試行 は、ポータル側の
+    cron 監視が通知するため重複通知しない）。
 
 ## App Settings（値はコードに書かない）
 

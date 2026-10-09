@@ -35,6 +35,7 @@ gh secret set CRON_SECRET --repo daigo-cloud/devlop-cron
 | hyoka-reminders | `15 0 * * *`（毎日 JST 09:15） | `/api/hyoka/reminders`（`?dryRun=1` で疎通確認可） |
 | rules-ledger-escalate | `5 23 * * *`（毎日 JST 08:05） | `/api/rules-ledger/cron/escalate` |
 | urgent-escalation-remind | `7 * * * *`（毎時07分） | `/api/urgent-escalation/cron/remind` |
+| worklist-generate | `17 20 * * *`（JST 05:17） | `/api/worklist/cron/generate`（今日やることの日次生成・冪等） |
 
 > エンドポイント・スケジュールの正典は本体 `devlop` の運用方針に従う。
 > 変更時は本表とワークフローを同期すること。

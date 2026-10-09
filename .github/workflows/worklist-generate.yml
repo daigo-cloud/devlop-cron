@@ -1,0 +1,39 @@
+name: Worklist Generate
+
+on:
+  # 統合ポータル「今日やること」（ワークリスト）の日次生成。正典は本体 devlop の docs/worklist.md。
+  # 担当者が朝ホームを開く前に、全対象ユーザーの WorkItem をルールから再生成する
+  # （ホームを開いた時の本人分 refresh は別にあるため、遅延しても一覧が空にはならない）。
+  # 毎朝 JST 05:17（UTC 20:17）。冪等（再実行しても件数は増えない）。
+  schedule:
+    - cron: "17 20 * * *"
+  workflow_dispatch:
+
+# 同一ワークフローの連続起動では古い実行をキャンセルし多重実行を防ぐ。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call worklist generate endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/worklist_body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://portal.esco-duct.com/api/worklist/cron/generate")
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/worklist_body || true
+          echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Worklist generate endpoint returned non-200: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Worklist generate completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

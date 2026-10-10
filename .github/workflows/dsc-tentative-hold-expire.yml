@@ -1,0 +1,23 @@
+name: dsc-tentative-hold-expire
+on:
+  schedule:
+    - cron: "43 21 * * *"   # JST 06:43（UTC前日21:43）
+  workflow_dispatch: {}
+concurrency:
+  group: dsc-tentative-hold-expire
+  cancel-in-progress: true
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call DSC tentative-hold expire endpoint
+        run: |
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://portal.esco-duct.com/api/dsc/tentative-holds/expire"
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

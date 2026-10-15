@@ -37,6 +37,7 @@ gh secret set CRON_SECRET --repo daigo-cloud/devlop-cron
 | urgent-escalation-remind | `7 * * * *`（毎時07分） | `/api/urgent-escalation/cron/remind` |
 | worklist-generate | `17 20 * * *`（JST 05:17） | `/api/worklist/cron/generate`（今日やることの日次生成・冪等） |
 | dsc-tentative-hold-expire | `43 21 * * *`（JST 06:43） | `/api/dsc/tentative-holds/expire`（POST・期限切れ仮押さえの自動解除・冪等） |
+| feedback-digest | `52 22 * * 0-4`（JST 平日 07:52） | `/api/feedback/digest`（POST・未対応フィードバックのAI判断待ち一覧を社長のTeams個人チャットへ。土日祝はサーバ側でskip） |
 
 > エンドポイント・スケジュールの正典は本体 `devlop` の運用方針に従う。
 > 変更時は本表とワークフローを同期すること。

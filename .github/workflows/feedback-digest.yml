@@ -1,0 +1,23 @@
+name: feedback-digest
+on:
+  schedule:
+    - cron: "52 22 * * 0-4"   # JST 平日(月〜金) 07:52（UTC前日22:52・日〜木）
+  workflow_dispatch: {}
+concurrency:
+  group: feedback-digest
+  cancel-in-progress: true
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call feedback digest endpoint
+        run: |
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://portal.esco-duct.com/api/feedback/digest"
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

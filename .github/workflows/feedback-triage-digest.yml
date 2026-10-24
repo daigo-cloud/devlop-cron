@@ -3,9 +3,9 @@ name: Feedback Triage Digest
 on:
   # フィードバック未対応の日次ダイジェスト（機能別残数）を Teams へ通知。
   # サーバ側で集計〜投稿まで完結する endpoint を curl するだけ。未対応0件なら投稿しない。
-  # JST 平日 7:12（UTC-9 = UTC 22:12 の日〜木）。
+  # JST 平日 5:31（UTC-9 = UTC 20:31 の日〜木）。社長が朝6時台に確認するため（2026-10-24 社長指示）。
   schedule:
-    - cron: "12 22 * * 0-4"
+    - cron: "31 20 * * 0-4"
   workflow_dispatch:
 
 concurrency:

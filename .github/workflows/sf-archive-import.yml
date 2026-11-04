@@ -1,0 +1,94 @@
+# 元例: devlop docs/sf-exit/sf-archive-cron.yml.example。error・生の本文は出力しない。
+name: sf-archive-import
+
+on:
+  schedule:
+    - cron: "19 17 * * *" # 毎日 02:19 JST（既存 workflow と開始分をずらす）
+  workflow_dispatch:
+    inputs:
+      kinds:
+        description: "種別を限定 (dailyReport|dailyReportStatus|oppStageHistory|feedItem|feedComment|emailMessage|file をカンマ区切り)。空=全種別"
+        required: false
+        default: ""
+      dry_run:
+        description: "true なら全種別の先頭ページの形だけ確認（DB 書込みなし）"
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 170 # 最大40回 × curl上限230秒 + 余裕
+    steps:
+      - name: SF 全種別を hasMore がなくなるまで取り込む
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          KINDS_IN: ${{ github.event.inputs.kinds }}
+          DRY_IN: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          # run スクリプトの表示にもホスト名を含めず、実行時にマスクする。
+          HOST=$(printf '%s.%s' 'portal' 'esco-duct.com')
+          echo "::add-mask::$HOST"
+          BODY_FILE=$(mktemp)
+          trap 'rm -f "$BODY_FILE"' EXIT
+          DRY="false"
+          [ "${DRY_IN:-}" != "true" ] || DRY="true"
+          if [ -n "${KINDS_IN:-}" ]; then
+            BODY=$(jq -cn --arg k "$KINDS_IN" --argjson d "$DRY" '{kinds: ($k|split(",")), dryRun: $d, budgetSec: 150}')
+          else
+            BODY=$(jq -cn --argjson d "$DRY" '{dryRun: $d, budgetSec: 150}')
+          fi
+          MAX=40
+          [ "$DRY" != "true" ] || MAX=1
+          PARTIAL=0
+          for i in $(seq 1 "$MAX"); do
+            if ! code=$(curl -s --max-time 230 -o "$BODY_FILE" -w "%{http_code}" -X POST \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              -H "Content-Type: application/json" -d "$BODY" \
+              "https://$HOST/api/sf-archive/cron/import" 2>/dev/null); then
+              echo "::error::通信に失敗しました"
+              exit 1
+            fi
+            echo "round ${i}: HTTP ${code}"
+            if ! jq -c '{ok, partial, hasMore, elapsedMs, results: [(.results // [])[] | {kind, ok, pages, fetched, upserted, caughtUp, hasMore}]}' "$BODY_FILE" 2>/dev/null; then
+              echo "::error::JSON 応答を解析できませんでした"
+              exit 1
+            fi
+            if [ "$code" != "200" ]; then
+              echo "::error::取込 API が非200を返しました"
+              exit 1
+            fi
+            # 欠落・不正な状態を完了扱いにしない。
+            if ! jq -e '(.ok | type == "boolean") and (.partial | type == "boolean") and (.hasMore | type == "boolean") and (.results | type == "array" and length > 0) and all(.results[]; (.ok | type == "boolean"))' "$BODY_FILE" >/dev/null 2>&1; then
+              echo "::error::取込状態を確認できませんでした"
+              exit 1
+            fi
+            if jq -e '.partial or any(.results[]; .ok == false)' "$BODY_FILE" >/dev/null; then
+              PARTIAL=1
+            fi
+            if ! jq -e '.ok == true or .partial == true' "$BODY_FILE" >/dev/null; then
+              echo "::error::取込が失敗しました"
+              exit 1
+            fi
+            if [ "$DRY" = "true" ] || jq -e '.hasMore == false' "$BODY_FILE" >/dev/null; then
+              if [ "$PARTIAL" != "0" ]; then
+                echo "::error::一部の種別が失敗しました（詳細は管理画面で確認）"
+                exit 1
+              fi
+              echo "取込処理を終了しました"
+              exit 0
+            fi
+          done
+          echo "::error::最大呼出回数に達しました（続きは次回実行）"
+          exit 1
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

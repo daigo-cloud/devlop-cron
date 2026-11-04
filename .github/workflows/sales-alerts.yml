@@ -1,0 +1,118 @@
+# 正典: devlop docs/sf-exit/ と切替 runbook §1-7。公開ログには件数・状態だけを出す。
+name: sales-alerts
+
+on:
+  # schedule は 11/17 の切替時に別途追加する。
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true なら件数の確認だけ（書込み・送信なし）"
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      DRY_IN: ${{ github.event.inputs.dry_run }}
+    steps:
+      - name: stage0
+        run: |
+          set -euo pipefail
+          # run スクリプトの表示にもホスト名を含めず、実行時にマスクする。
+          HOST=$(printf '%s.%s' 'portal' 'esco-duct.com')
+          echo "::add-mask::$HOST"
+          BODY_FILE=$(mktemp)
+          trap 'rm -f "$BODY_FILE"' EXIT
+          DRY=""
+          [ "$DRY_IN" != "true" ] || DRY="&dryRun=1"
+          if ! STATUS=$(curl -s --max-time 120 -o "$BODY_FILE" -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://$HOST/api/sales/cron/alerts?kind=stage0${DRY}" 2>/dev/null); then
+            echo "::error::通信に失敗しました"
+            exit 1
+          fi
+          echo "HTTP $STATUS"
+          # エラー本文も生では出さない。許可した項目だけを最大200文字に制限する。
+          if ! SUMMARY=$(jq -c '{ok,kind,dryRun,planned,created,failed,approverCount,recipients,sent,noChannel}' "$BODY_FILE" 2>/dev/null); then
+            echo "::error::JSON 応答を解析できませんでした"
+            exit 1
+          fi
+          if [ "$STATUS" != "200" ] || ! jq -e '.ok == true' "$BODY_FILE" >/dev/null 2>&1; then
+            printf '%s' "$SUMMARY" | head -c 200
+            echo ""
+            exit 1
+          fi
+          printf '%s\n' "$SUMMARY"
+
+      - name: stage5
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          # run スクリプトの表示にもホスト名を含めず、実行時にマスクする。
+          HOST=$(printf '%s.%s' 'portal' 'esco-duct.com')
+          echo "::add-mask::$HOST"
+          BODY_FILE=$(mktemp)
+          trap 'rm -f "$BODY_FILE"' EXIT
+          DRY=""
+          [ "$DRY_IN" != "true" ] || DRY="&dryRun=1"
+          if ! STATUS=$(curl -s --max-time 120 -o "$BODY_FILE" -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://$HOST/api/sales/cron/alerts?kind=stage5${DRY}" 2>/dev/null); then
+            echo "::error::通信に失敗しました"
+            exit 1
+          fi
+          echo "HTTP $STATUS"
+          # エラー本文も生では出さない。許可した項目だけを最大200文字に制限する。
+          if ! SUMMARY=$(jq -c '{ok,kind,dryRun,planned,created,failed,approverCount,recipients,sent,noChannel}' "$BODY_FILE" 2>/dev/null); then
+            echo "::error::JSON 応答を解析できませんでした"
+            exit 1
+          fi
+          if [ "$STATUS" != "200" ] || ! jq -e '.ok == true' "$BODY_FILE" >/dev/null 2>&1; then
+            printf '%s' "$SUMMARY" | head -c 200
+            echo ""
+            exit 1
+          fi
+          printf '%s\n' "$SUMMARY"
+
+      - name: inactivity30
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          # run スクリプトの表示にもホスト名を含めず、実行時にマスクする。
+          HOST=$(printf '%s.%s' 'portal' 'esco-duct.com')
+          echo "::add-mask::$HOST"
+          BODY_FILE=$(mktemp)
+          trap 'rm -f "$BODY_FILE"' EXIT
+          DRY=""
+          [ "$DRY_IN" != "true" ] || DRY="&dryRun=1"
+          if ! STATUS=$(curl -s --max-time 120 -o "$BODY_FILE" -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://$HOST/api/sales/cron/alerts?kind=inactivity30${DRY}" 2>/dev/null); then
+            echo "::error::通信に失敗しました"
+            exit 1
+          fi
+          echo "HTTP $STATUS"
+          # エラー本文も生では出さない。許可した項目だけを最大200文字に制限する。
+          if ! SUMMARY=$(jq -c '{ok,kind,dryRun,planned,created,failed,approverCount,recipients,sent,noChannel}' "$BODY_FILE" 2>/dev/null); then
+            echo "::error::JSON 応答を解析できませんでした"
+            exit 1
+          fi
+          if [ "$STATUS" != "200" ] || ! jq -e '.ok == true' "$BODY_FILE" >/dev/null 2>&1; then
+            printf '%s' "$SUMMARY" | head -c 200
+            echo ""
+            exit 1
+          fi
+          printf '%s\n' "$SUMMARY"
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

@@ -38,6 +38,8 @@ gh secret set CRON_SECRET --repo daigo-cloud/devlop-cron
 | worklist-generate | `17 20 * * *`（JST 05:17） | `/api/worklist/cron/generate`（今日やることの日次生成・冪等） |
 | dsc-tentative-hold-expire | `43 21 * * *`（JST 06:43） | `/api/dsc/tentative-holds/expire`（POST・期限切れ仮押さえの自動解除・冪等） |
 | feedback-digest | `37 20 * * 0-4`（JST 平日 05:37） | `/api/feedback/digest`（POST・未対応フィードバックのAI判断待ち一覧を社長のTeams個人チャットへ。土日祝はサーバ側でskip） |
+| sales-alerts | 手動のみ（dry_run の既定は true・schedule は11/17に別途追加） | POST `/api/sales/cron/alerts?kind=stage0・stage5・inactivity30`（件数・状態のみ出力） |
+| sf-archive-import | `19 17 * * *`（JST 02:19）＋手動（dry_run 可） | POST `/api/sf-archive/cron/import`（全種別・partial 検知・error 非出力） |
 
 > エンドポイント・スケジュールの正典は本体 `devlop` の運用方針に従う。
 > 変更時は本表とワークフローを同期すること。

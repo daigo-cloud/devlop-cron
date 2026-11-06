@@ -1,4 +1,4 @@
-# 元例: devlop docs/sf-exit/sf-archive-cron.yml.example。error・生の本文は出力しない。
+# 元例: devlop docs/sf-exit/sf-archive-cron.yml.example。error message・生の本文は出力しない。
 name: sf-archive-import
 
 on:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       kinds:
-        description: "種別を限定 (dailyReport|dailyReportStatus|oppStageHistory|feedItem|feedComment|emailMessage|file をカンマ区切り)。空=全種別"
+        description: "種別を限定 (dailyReport|dailyReportStatus|oppStageHistory|feedItem|feedComment|file をカンマ区切り)。空=夜間対象の全種別"
         required: false
         default: ""
       dry_run:
@@ -59,6 +59,15 @@ jobs:
               echo "::error::JSON 応答を解析できませんでした"
               exit 1
             fi
+            # 公開ログには失敗の種類だけを出す。error/message の本文は出力しない。
+            while IFS=$'\t' read -r kind sf_code exception_class; do
+              [ -z "$kind" ] || echo "::error::失敗種別 kind=${kind} HTTP=${code} Salesforce=${sf_code} exception=${exception_class}"
+            done < <(jq -r '
+              ((.results // [])[] | select(.ok == false) |
+                [.kind, (.errorType.salesforceErrorCode // "-"), (.errorType.exceptionClass // "-")]),
+              (if .errorType then ["request", (.errorType.salesforceErrorCode // "-"), (.errorType.exceptionClass // "-")] else empty end)
+              | @tsv
+            ' "$BODY_FILE" 2>/dev/null)
             if [ "$code" != "200" ]; then
               echo "::error::取込 API が非200を返しました"
               exit 1

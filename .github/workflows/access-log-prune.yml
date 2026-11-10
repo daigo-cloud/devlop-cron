@@ -1,0 +1,38 @@
+name: Access Log Prune
+
+on:
+  # ポータル閲覧ログ(PortalAccessLog)の保持期間(90日)超過分を削除する。
+  # devlop の lib/monitoring/cron.ts CRON_JOBS に "admin/usage-prune" として毎日1回の想定で登録済み。
+  # 毎日 JST 03:20（UTC 18:20）。冪等: 90日超の行を消すだけなので再実行は安全。
+  schedule:
+    - cron: "20 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call access-log prune endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -X POST -o /tmp/access_log_prune_body -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://portal.esco-duct.com/api/admin/usage/prune")
+          echo "HTTP status: $HTTP_STATUS"
+          echo "Response:"
+          cat /tmp/access_log_prune_body || true
+          echo ""
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "access-log prune endpoint returned non-200 status: $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Access log prune completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

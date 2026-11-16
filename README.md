@@ -40,9 +40,19 @@ gh secret set CRON_SECRET --repo daigo-cloud/devlop-cron
 | feedback-digest | `37 20 * * 0-4`（JST 平日 05:37） | `/api/feedback/digest`（POST・未対応フィードバックのAI判断待ち一覧を社長のTeams個人チャットへ。土日祝はサーバ側でskip） |
 | sales-alerts | 手動のみ（dry_run の既定は true・schedule は11/17に別途追加） | POST `/api/sales/cron/alerts?kind=stage0・stage5・inactivity30`（件数・状態のみ出力） |
 | sf-archive-import | `19 17 * * *`（JST 02:19）＋手動（dry_run 可） | POST `/api/sf-archive/cron/import`（全種別・partial 検知・error 非出力） |
+| genba-intake-retention | `29 18 * * *`（JST 03:29） | GET `/api/genba-intake/cron/retention`（未発注依頼の図面を到着183日で削除・1回200件まで。**現在は `?dryRun=1` で件数のみ**） |
 
 > エンドポイント・スケジュールの正典は本体 `devlop` の運用方針に従う。
 > 変更時は本表とワークフローを同期すること。
+
+### genba-intake-retention：件数確認 → 本番削除への切替手順
+
+前提：このジョブのマージは devlop#1712（入口の追加）が本番反映された後に行うこと（反映前は404で失敗通知が飛ぶ）。
+
+1. 当面は dryRun（件数を数えるだけ・何も消さない）で毎日動く。
+2. Actions の実行ログで件数を確認する（手動実行は Actions タブの Run workflow）。
+3. ゆかさんが件数を見て OK を出したら、ワークフローの `DRY_RUN="1"` を `DRY_RUN="0"` に変える1行の PR を作ってマージする。
+4. 元に戻す（止める）ときは `"1"` に戻す。
 
 ## 死活監視・Graph購読更新（Azure Functions 並走・2026-09-14〜）
 

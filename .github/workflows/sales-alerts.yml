@@ -2,7 +2,12 @@
 name: sales-alerts
 
 on:
-  # schedule は 11/17 の切替時に別途追加する。
+  schedule:
+    # 平日 08:00 JST(UTC 23:00・曜日 0-4 = 日〜木 UTC = 月〜金 JST)。祝日も走る(ポータル側で冪等)。
+    # 正典: devlop docs/sf-exit/sales-alerts-cron.yml.example(「平日 08:00 JST」)。
+    # 定期実行では inputs.dry_run が空になり、DRY_IN != "true" のため dryRun なし=本番の動き
+    # (ToDo 作成・Teams 送信が実際に行われる)。確認だけしたい時は workflow_dispatch の dry_run=true を使う。
+    - cron: "0 23 * * 0-4"
   workflow_dispatch:
     inputs:
       dry_run:

@@ -1,0 +1,75 @@
+# 図面見積依頼（genba-intake）で発注に至らなかった依頼の図面を、ポータル到着から183日たったら
+# SharePoint から自動削除する入口を1日1回呼ぶ。取引が進んだ依頼は対象外。
+# 1回の呼出で最大200件。判定・冪等性はエンドポイント側（devlop）が正典。
+# 公開リポのログなので、応答本文（ファイル名・依頼名など）はそのまま出さず、件数などの数値・真偽値だけ出す。
+name: genba-intake-retention
+
+on:
+  schedule:
+    # 毎日 JST 03:29（UTC 18:29）。他ジョブと重ならない深夜帯。
+    # 29分は毎時ジョブ(07/11/13/17/53/59分・15分毎)とも重ならない。
+    - cron: "29 18 * * *"
+  workflow_dispatch: {}
+
+# 削除処理を途中で止めないため、実行中のものはキャンセルしない。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  retention:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Call genba-intake retention endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          # ▼ 本番削除への切替はこの1行だけ：DRY_RUN="1" → DRY_RUN="0" に変える（ゆかさんが件数を見て OK を出してから）
+          # 　 "1" = 件数を数えるだけ（何も消さない）／"0" = 本当に削除する
+          DRY_RUN="1"
+
+          URL="https://portal.esco-duct.com/api/genba-intake/cron/retention"
+          if [ "$DRY_RUN" = "1" ]; then
+            URL="${URL}?dryRun=1"
+            echo "mode: dryRun"
+          else
+            echo "mode: 本番削除"
+          fi
+
+          BODY_FILE=$(mktemp)
+          trap 'rm -f "$BODY_FILE"' EXIT
+
+          if ! code=$(curl -sS --max-time 120 -o "$BODY_FILE" -w "%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$URL"); then
+            echo "::error::通信に失敗しました"
+            exit 1
+          fi
+          echo "HTTP status: ${code}"
+
+          # 応答本文はそのまま出さない。数値・真偽値のトップレベル項目（件数など）だけ出す。
+          JQ_FILTER='if type == "object" then with_entries(select(.value | type == "number" or type == "boolean")) else {} end'
+
+          # 非200のときは応答が HTML など JSON でないことがあるため、jq は試すだけ（失敗しても無視）。
+          if [ "$code" != "200" ]; then
+            jq -c "$JQ_FILTER" "$BODY_FILE" 2>/dev/null || true
+            if [ "$code" = "404" ]; then
+              echo "ヒント: devlop#1712（入口の追加）が本番に未反映の可能性があります"
+            fi
+            echo "::error::retention エンドポイントが非200を返しました (HTTP ${code})"
+            exit 1
+          fi
+
+          if ! jq -c "$JQ_FILTER" "$BODY_FILE"; then
+            echo "::error::JSON 応答を解析できませんでした"
+            exit 1
+          fi
+          echo "genba-intake retention completed."
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

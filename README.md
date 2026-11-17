@@ -33,6 +33,7 @@ gh secret set CRON_SECRET --repo daigo-cloud/devlop-cron
 | crm-sync | `31 21 * * *`（JST 06:31） | `/api/crm/sync` |
 | nippo-submission-status | `57 12 * * 1-5`（平日 JST 21:57） | `/api/nippo/cron/submission-status` |
 | hyoka-reminders | `15 0 * * *`（毎日 JST 09:15） | `/api/hyoka/reminders`（`?dryRun=1` で疎通確認可） |
+| access-log-prune | `20 18 * * *`（毎日 JST 03:20） | `/api/admin/usage/prune`（POST・閲覧ログ90日削除） |
 | rules-ledger-escalate | `5 23 * * *`（毎日 JST 08:05） | `/api/rules-ledger/cron/escalate` |
 | urgent-escalation-remind | `7 * * * *`（毎時07分） | `/api/urgent-escalation/cron/remind` |
 | worklist-generate | `17 20 * * *`（JST 05:17） | `/api/worklist/cron/generate`（今日やることの日次生成・冪等） |

@@ -1,0 +1,58 @@
+name: Access Log Prune
+
+on:
+  # ポータル閲覧ログ(PortalAccessLog)の保持期間(90日)超過分を削除する。
+  # devlop の lib/monitoring/cron.ts CRON_JOBS に "admin/usage-prune" として毎日1回の想定で登録済み。
+  # 毎日 JST 03:20（UTC 18:20）。冪等: 90日超の行を消すだけなので再実行は安全。
+  schedule:
+    - cron: "20 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: access-log-prune
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call access-log prune endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET//[[:space:]]/}" ]; then
+            echo "::error::CRON_SECRET is not configured."
+            exit 1
+          fi
+          BODY_FILE=$(mktemp)
+          trap 'rm -f "$BODY_FILE"' EXIT
+          # 本文・curl/JSON解析のエラー詳細は公開ログへ出さない。
+          if ! HTTP_STATUS=$(curl -s --connect-timeout 10 --max-time 120 \
+            -X POST -o "$BODY_FILE" -w "%{http_code}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "https://portal.esco-duct.com/api/admin/usage/prune" 2>/dev/null); then
+            echo "::error::Access log prune request failed (transport error)."
+            exit 1
+          fi
+          echo "HTTP status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::error::Access log prune endpoint returned non-200 status."
+            exit 1
+          fi
+          if ! jq -es 'length == 1 and (.[0] | type == "object" and .ok == true and
+            (.deleted | type == "number" and . >= 0 and . == floor))' \
+            "$BODY_FILE" >/dev/null 2>&1; then
+            echo "::error::Access log prune returned an invalid success response."
+            exit 1
+          fi
+          DELETED=$(jq -r '.deleted' "$BODY_FILE" 2>/dev/null)
+          echo "Access log prune completed. deleted=${DELETED}"
+
+      - name: Notify Teams on failure
+        if: failure()
+        uses: daigo-cloud/devlop-cron/.github/actions/notify-failure@main
+        with:
+          webhook-url: ${{ secrets.MONITORING_TEAMS_WEBHOOK_URL }}

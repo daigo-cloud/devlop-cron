@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           # ▼ 本番削除への切替はこの1行だけ：DRY_RUN="1" → DRY_RUN="0" に変える（ゆかさんが件数を見て OK を出してから）
           # 　 "1" = 件数を数えるだけ（何も消さない）／"0" = 本当に削除する
-          DRY_RUN="1"
+          DRY_RUN="0"
 
           URL="https://portal.esco-duct.com/api/genba-intake/cron/retention"
           if [ "$DRY_RUN" = "1" ]; then

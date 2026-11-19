@@ -66,6 +66,13 @@ jobs:
             echo "::error::JSON 応答を解析できませんでした"
             exit 1
           fi
+          # 200 でも、ok が true でない・failed が数値でない・failed が 0 より大きい（削除に失敗した図面がある）
+          # ときは失敗として終える（exit 1 → 下の Teams 失敗通知が動く）。応答の形は devlop の route.ts が正典。
+          # 失敗した図面は行が残り翌日に再試行される。
+          if ! jq -e '(.ok == true) and ((.failed | type) == "number") and (.failed == 0)' "$BODY_FILE" >/dev/null 2>&1; then
+            echo "::error::削除に失敗した図面があるか、応答が想定外です（ok が true でない・failed が 0 でない・failed が無い）"
+            exit 1
+          fi
           echo "genba-intake retention completed."
 
       - name: Notify Teams on failure
